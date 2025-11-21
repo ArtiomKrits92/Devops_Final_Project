@@ -52,9 +52,9 @@ graph LR
     A[Phase 1: CLI App<br/>Python Script<br/>RAM Storage] --> B[Phase 2: Web App<br/>Flask + HTML<br/>JSON Files]
     B --> C[Phase 3: Cloud<br/>Docker + K8s<br/>AWS + HA]
     
-    style A fill:#ff6b6b
-    style B fill:#4ecdc4
-    style C fill:#95e1d3
+    style A fill:#bf616a,stroke:#2e3440,stroke-width:3px,color:#eceff4
+    style B fill:#5e81ac,stroke:#2e3440,stroke-width:3px,color:#eceff4
+    style C fill:#a3be8c,stroke:#2e3440,stroke-width:3px,color:#2e3440
 ```
 
 ---
@@ -273,12 +273,12 @@ graph TB
     EC2-2 --> NFS
     EC2-3 --> NFS
     
-    style Internet fill:#e1f5ff
-    style LB fill:#81c784
-    style EC2-1 fill:#64b5f6
-    style EC2-2 fill:#64b5f6
-    style EC2-3 fill:#64b5f6
-    style NFS fill:#ffb74d
+    style Internet fill:#5e81ac,stroke:#2e3440,stroke-width:3px,color:#eceff4
+    style LB fill:#a3be8c,stroke:#2e3440,stroke-width:3px,color:#2e3440
+    style EC2-1 fill:#88c0d0,stroke:#2e3440,stroke-width:3px,color:#2e3440
+    style EC2-2 fill:#88c0d0,stroke:#2e3440,stroke-width:3px,color:#2e3440
+    style EC2-3 fill:#88c0d0,stroke:#2e3440,stroke-width:3px,color:#2e3440
+    style NFS fill:#ebcb8b,stroke:#2e3440,stroke-width:3px,color:#2e3440
 ```
 
 **Key Components:**
