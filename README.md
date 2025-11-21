@@ -185,6 +185,74 @@ graph LR
 3. **Access the application**
    - Navigate to `http://localhost:31415`
 
+### 🔐 AWS Credentials Setup
+
+Before deploying to AWS, you need to configure your AWS credentials. The setup method depends on your environment and whether you're using AWS Academy or standard AWS accounts.
+
+#### GitHub Actions Secrets
+
+For CI/CD pipelines using GitHub Actions, add the following secrets to your repository:
+
+1. Navigate to your repository on GitHub
+2. Go to **Settings** → **Secrets and variables** → **Actions**
+3. Click **New repository secret** and add:
+   - `AWS_ACCESS_KEY_ID`: Your AWS access key ID
+   - `AWS_SECRET_ACCESS_KEY`: Your AWS secret access key
+   - `AWS_SESSION_TOKEN`: Your AWS session token (required for temporary credentials)
+
+**Note:** If using AWS Academy, session tokens expire after 4 hours. You'll need to refresh these secrets periodically or use a script to automate token rotation.
+
+#### Local Setup
+
+**Option 1: AWS Credentials File (Recommended)**
+
+Create or edit `~/.aws/credentials`:
+
+```ini
+[default]
+aws_access_key_id = YOUR_ACCESS_KEY_ID
+aws_secret_access_key = YOUR_SECRET_ACCESS_KEY
+aws_session_token = YOUR_SESSION_TOKEN
+```
+
+For AWS Academy credentials, the session token is required and must be updated every 4 hours.
+
+**Option 2: Environment Variables**
+
+Export credentials as environment variables in your shell:
+
+```bash
+export AWS_ACCESS_KEY_ID="your-access-key-id"
+export AWS_SECRET_ACCESS_KEY="your-secret-access-key"
+export AWS_SESSION_TOKEN="your-session-token"
+```
+
+To persist these across sessions, add them to your `~/.bashrc` or `~/.zshrc`:
+
+```bash
+echo 'export AWS_ACCESS_KEY_ID="your-access-key-id"' >> ~/.zshrc
+echo 'export AWS_SECRET_ACCESS_KEY="your-secret-access-key"' >> ~/.zshrc
+echo 'export AWS_SESSION_TOKEN="your-session-token"' >> ~/.zshrc
+source ~/.zshrc
+```
+
+#### Security Best Practices
+
+⚠️ **Important:** Never commit AWS credentials to version control. Always use:
+- GitHub Secrets for CI/CD pipelines
+- Local credentials files (excluded via `.gitignore`)
+- Environment variables for local development
+- AWS IAM roles when running on EC2 instances
+
+Verify your credentials are excluded from Git:
+
+```bash
+# Ensure .gitignore includes:
+.aws/
+*.pem
+.env
+```
+
 ### AWS/Kubernetes Deployment
 
 1. **Provision infrastructure with Terraform**
