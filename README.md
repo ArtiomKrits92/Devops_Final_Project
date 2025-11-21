@@ -409,7 +409,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - GitHub: [@ArtiomKrits92](https://github.com/ArtiomKrits92)
 - Project Link: [https://github.com/ArtiomKrits92/it-asset-management](https://github.com/ArtiomKrits92/it-asset-management)
-
+- LinkedIn: https://www.linkedin.com/in/artiom-krits-%F0%9F%8E%97%EF%B8%8F-855372202/
 ---
 
 ## 🙏 Acknowledgments
