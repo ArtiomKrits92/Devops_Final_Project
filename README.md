@@ -22,6 +22,7 @@
 - [Data Persistence](#-data-persistence)
 - [Getting Started](#-getting-started)
   - [Containerization with Docker](#23-containerization-with-docker)
+  - [Infrastructure as Code with Terraform](#24-infrastructure-as-code-with-terraform)
 - [Project Structure](#-project-structure)
 - [API Endpoints](#-api-endpoints)
 - [Lessons Learned](#-lessons-learned)
@@ -247,6 +248,79 @@ You can pull and run the image directly:
 docker pull artie92/asset-manager:latest
 docker run -d -p 31415:31415 -v $(pwd)/data:/data artie92/asset-manager:latest
 ```
+
+### 2.4 Infrastructure as Code with Terraform
+
+Terraform allows you to define your AWS infrastructure as code instead of manually clicking through the AWS Console. This approach makes your infrastructure reproducible, version-controlled, and easy to deploy multiple times. For student projects, this is particularly useful because you often need to tear down and rebuild environments frequently due to AWS Academy time limits and budget constraints.
+
+#### 2.4.1 Why Terraform
+
+Instead of manually creating VPCs, subnets, security groups, and EC2 instances through the AWS Console, Terraform lets you write configuration files that describe exactly what infrastructure you need. When you run `terraform apply`, Terraform creates all the resources automatically. If you need to destroy everything (like when your AWS Academy lab time expires), you just run `terraform destroy` and everything is removed cleanly.
+
+This is especially valuable for DevOps projects where you need to:
+- Recreate the same infrastructure multiple times for testing
+- Share infrastructure configurations with teammates
+- Keep track of changes to your infrastructure over time
+- Quickly tear down resources to avoid unexpected charges
+
+#### 2.4.2 Infrastructure Components
+
+The Terraform configuration in this project creates the following AWS resources:
+
+- **VPC** with CIDR block `10.0.0.0/16` - The virtual network that contains all our resources
+- **Two public subnets** in different availability zones:
+  - Subnet 1: `10.0.1.0/24` (default availability zone)
+  - Subnet 2: `10.0.2.0/24` in `us-east-1b`
+- **Internet Gateway** - Provides internet access for resources in the public subnets
+- **Route tables** - Configured to route all internet traffic (`0.0.0.0/0`) through the Internet Gateway
+- **Security groups**:
+  - Load balancer security group allowing HTTP traffic on port 80 from anywhere
+  - Instance security group allowing:
+    - SSH access on port 22
+    - Kubernetes API on port 6443
+    - NodePort for application on port 30080
+    - NFS server on port 2049
+    - Kubelet API on port 10250
+- **Three EC2 instances** (t2.medium):
+  - Master node at private IP `10.0.1.10`
+  - Worker node 1 at private IP `10.0.1.11`
+  - Worker node 2 at private IP `10.0.1.12`
+- **Application Load Balancer** - Distributes traffic across instances in multiple availability zones
+- **Target group** - Health checks and load balancing configuration for port 30080
+- **Target group attachments** - Registers all three EC2 instances with the load balancer
+
+#### 2.4.3 Terraform Commands
+
+**Installation on macOS:**
+
+```bash
+brew tap hashicorp/tap
+brew install hashicorp/tap/terraform
+terraform version
+```
+
+**Basic workflow:**
+
+```bash
+cd terraform/
+
+terraform init      # Initialize and download AWS provider
+terraform fmt       # Format code
+terraform validate  # Check syntax
+terraform plan      # Preview changes
+terraform apply     # Create infrastructure
+terraform destroy   # Delete everything
+```
+
+**Important:** Before running `terraform apply`, you must configure your AWS credentials. For AWS Academy users, export the credentials as environment variables from the AWS Details panel:
+
+```bash
+export AWS_ACCESS_KEY_ID="your-access-key"
+export AWS_SECRET_ACCESS_KEY="your-secret-key"
+export AWS_SESSION_TOKEN="your-session-token"
+```
+
+The `terraform plan` command shows you exactly what will be created, modified, or destroyed before you actually make any changes. This is a safety feature that helps prevent mistakes.
 
 ---
 
