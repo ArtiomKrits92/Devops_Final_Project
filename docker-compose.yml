@@ -1,0 +1,11 @@
+services:
+  asset-manager:
+    build: .
+    image: artie92/asset-manager:latest
+    ports:
+      - "31415:31415"
+    volumes:
+      - ./data:/data
+    environment:
+      - FLASK_ENV=development
+    container_name: asset-manager-app
