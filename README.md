@@ -15,12 +15,13 @@
 ## 📑 Table of Contents
 
 - [Overview](#-overview)
+- [Key Highlights](#-key-highlights)
 - [Architecture Evolution](#-architecture-evolution)
 - [Tech Stack](#-tech-stack)
 - [Features](#-features)
 - [Data Persistence](#-data-persistence)
-- [Demo](#-demo)
 - [Getting Started](#-getting-started)
+  - [Containerization with Docker](#23-containerization-with-docker)
 - [Project Structure](#-project-structure)
 - [API Endpoints](#-api-endpoints)
 - [Lessons Learned](#-lessons-learned)
@@ -38,6 +39,16 @@ The IT Asset Management System is a Flask web application designed to track, man
 - Monitor inventory levels and stock valuation
 - Generate reports by category and user
 - Persistent data storage with JSON file-based backend
+
+---
+
+## 🎯 Key Highlights
+
+- **Full CRUD operations with persistent storage** - Create, read, update, and delete assets and users with automatic JSON file persistence
+- **Bootstrap-powered responsive UI** - Modern, mobile-friendly interface built with Bootstrap 5.3
+- **Real-time inventory analytics** - Dashboard with live statistics, stock valuation, and category-based reporting
+- **Multi-user asset assignment system** - Assign and track IT assets across multiple users with detailed assignment history
+- **RESTful API design** - Clean, intuitive route structure following REST principles for easy extension
 
 ---
 
@@ -133,12 +144,6 @@ The application uses JSON file-based persistence for simplicity and portability:
 
 ---
 
-## 🎬 Demo
-
-> Screenshots and demo GIFs will be added as the project progresses
-
----
-
 ## 🚀 Getting Started
 
 ### Prerequisites
@@ -175,6 +180,74 @@ The application uses JSON file-based persistence for simplicity and portability:
    - Open your browser and navigate to `http://localhost:31415`
    - The application will automatically create data files in `website/data/` on first run
 
+### 2.3 Containerization with Docker
+
+The application has been containerized using Docker for consistent deployment across different environments. Docker ensures that the application runs the same way on any machine, whether it's a developer's laptop or a production server.
+
+**Why Python 3.9-slim?**
+
+We chose Python 3.9-slim as the base image for a good balance between image size and compatibility:
+- **Size**: The slim variant is approximately 226MB, compared to ~900MB for the full Python image
+- **Compatibility**: Python 3.9 provides excellent compatibility with Flask and all required dependencies
+- **Alpine Alternative**: While Alpine Linux images are smaller (~50MB), they can have compatibility issues with some Python packages that require compiled extensions
+
+**Docker Files Overview:**
+
+1. **Dockerfile** - Defines how to build the container image:
+   - Uses Python 3.9-slim base image
+   - Copies application files from `website/` directory
+   - Installs Flask and dependencies
+   - Creates data directory for persistence
+   - Exposes port 31415 for the Flask application
+
+2. **.dockerignore** - Excludes unnecessary files from the build context:
+   - Python cache files (`__pycache__/`, `*.pyc`)
+   - Git files and virtual environments
+   - Documentation and log files
+   - This reduces build time and image size
+
+3. **docker-compose.yml** - Simplifies container management:
+   - Defines service configuration
+   - Maps port 31415 to host
+   - Mounts `./data` volume for persistent storage
+   - Sets environment variables
+
+**Docker Commands:**
+
+**Build the image:**
+```bash
+docker build -t asset-manager:latest .
+```
+
+**Run container manually:**
+```bash
+docker run -d -p 31415:31415 -v $(pwd)/data:/data asset-manager:latest
+```
+
+**Run with Docker Compose (recommended):**
+```bash
+docker-compose up -d
+```
+
+**Stop the container:**
+```bash
+docker-compose down
+```
+
+**Access the application:**
+- Once running, navigate to `http://localhost:31415` in your browser
+- Data files are persisted in the `./data` directory on your host machine
+
+**Docker Hub:**
+The containerized application is available on Docker Hub:
+- **Image**: [artie92/asset-manager:latest](https://hub.docker.com/r/artie92/asset-manager)
+
+You can pull and run the image directly:
+```bash
+docker pull artie92/asset-manager:latest
+docker run -d -p 31415:31415 -v $(pwd)/data:/data artie92/asset-manager:latest
+```
+
 ---
 
 ## 📁 Project Structure
@@ -209,6 +282,9 @@ Devops_Final_Project/
 │
 ├── venv/                      # Python virtual environment
 ├── requirements.txt           # Python dependencies
+├── Dockerfile                 # Docker container definition
+├── .dockerignore              # Docker build exclusions
+├── docker-compose.yml         # Docker Compose configuration
 └── README.md                  # This file
 ```
 
