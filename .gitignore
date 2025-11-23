@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyc
+
+# Data files - exclude test data
+data/*.json
+
+# MacOS
+.DS_Store
+
+# IDE
+.vscode/
+.cursor/
+
+# Logs
+*.log
