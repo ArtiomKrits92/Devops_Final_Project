@@ -255,37 +255,37 @@ docker run -d -p 31415:31415 -v $(pwd)/data:/data artie92/asset-manager:latest
 ```
 Devops_Final_Project/
 │
-├── website/                    # Main application directory
-│   ├── app.py                 # Flask application entry point
-│   ├── data.py                # Data models and in-memory databases
-│   ├── file_manager.py        # File persistence layer
-│   ├── demo.py                # Demo data initialization
+├── website/                               # Main application directory
+│   ├── app.py                             # Flask application entry point
+│   ├── data.py                            # Data models and in-memory databases
+│   ├── file_manager.py                    # File persistence layer
+│   ├── demo.py                            # Demo data initialization
 │   │
-│   ├── data/                  # Data persistence directory
-│   │   ├── items.json        # Asset inventory data
-│   │   └── users.json        # User registry data
+│   ├── data/                              # Data persistence directory
+│   │   ├── items.json                     # Asset inventory data
+│   │   └── users.json                     # User registry data
 │   │
-│   └── templates/             # Jinja2 HTML templates
-│       ├── base.html         # Base template with navigation
-│       ├── index.html        # Dashboard/homepage
-│       ├── add_item.html     # Add asset form
-│       ├── delete_item.html  # Delete asset form
-│       ├── modify_item_select.html  # Select item to modify
-│       ├── modify_item_form.html    # Modify asset form
-│       ├── assign_item.html  # Assign asset to user
-│       ├── add_user.html     # Add user form
-│       ├── show_users.html   # User listing
-│       ├── show_user_items_select.html  # Select user to view items
-│       ├── show_user_items.html         # View user's assigned assets
-│       ├── show_stock_items.html        # Inventory listing
-│       └── stock_by_categories.html     # Category reports
+│   └── templates/                         # Jinja2 HTML templates
+│       ├── base.html                      # Base template with navigation
+│       ├── index.html                     # Dashboard/homepage
+│       ├── add_item.html                  # Add asset form
+│       ├── delete_item.html               # Delete asset form
+│       ├── modify_item_select.html        # Select item to modify
+│       ├── modify_item_form.html          # Modify asset form
+│       ├── assign_item.html               # Assign asset to user
+│       ├── add_user.html                  # Add user form
+│       ├── show_users.html                # User listing
+│       ├── show_user_items_select.html    # Select user to view items
+│       ├── show_user_items.html           # View user's assigned assets
+│       ├── show_stock_items.html          # Inventory listing
+│       └── stock_by_categories.html       # Category reports
 │
-├── venv/                      # Python virtual environment
-├── requirements.txt           # Python dependencies
-├── Dockerfile                 # Docker container definition
-├── .dockerignore              # Docker build exclusions
-├── docker-compose.yml         # Docker Compose configuration
-└── README.md                  # This file
+├── venv/                                  # Python virtual environment
+├── requirements.txt                       # Python dependencies
+├── Dockerfile                             # Docker container definition
+├── .dockerignore                          # Docker build exclusions
+├── docker-compose.yml                     # Docker Compose configuration
+└── README.md                              # This file
 ```
 
 ---
