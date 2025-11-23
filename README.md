@@ -3,7 +3,7 @@
 ![Technion](https://img.shields.io/badge/Technion-DevOps_2025-blue)
 ![Python](https://img.shields.io/badge/Python-3.13-blue.svg)
 ![Flask](https://img.shields.io/badge/Flask-3.0-green.svg)
-![Status](https://img.shields.io/badge/Status-Phase_1_Complete-success)
+![Status](https://img.shields.io/badge/Status-Phase_3_Complete-success)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
 > A Flask web application for managing IT assets with persistent file-based storage. Track hardware, accessories, licenses, and user assignments through an intuitive web interface.
@@ -60,9 +60,11 @@ The project evolved from a command-line interface to a full-featured web applica
 ```mermaid
 graph LR
     A[Phase 1: CLI App<br/>Python Script<br/>In-Memory Storage] --> B[Phase 2: Web App<br/>Flask + HTML<br/>JSON File Persistence]
+    B --> C[Phase 3: Infrastructure<br/>Terraform + AWS<br/>Cloud Deployment]
     
     style A fill:#bf616a,stroke:#2e3440,stroke-width:3px,color:#eceff4
     style B fill:#5e81ac,stroke:#2e3440,stroke-width:3px,color:#eceff4
+    style C fill:#a3be8c,stroke:#2e3440,stroke-width:3px,color:#2e3440
 ```
 
 **Phase 1 → Phase 2 Improvements:**
@@ -70,6 +72,12 @@ graph LR
 - **Data Storage**: In-memory dictionaries → Persistent JSON files
 - **User Experience**: Terminal interactions → Intuitive web forms and navigation
 - **Accessibility**: Single-user script → Multi-user web application
+
+**Phase 2 → Phase 3 Improvements:**
+- **Infrastructure**: Manual AWS setup → Automated Terraform provisioning
+- **Deployment**: Single local machine → Multi-instance cloud cluster
+- **Scalability**: Limited by local resources → Cloud-based with load balancing
+- **Repeatability**: Manual recreation → Infrastructure as code
 
 ---
 
@@ -88,6 +96,11 @@ graph LR
 ### Development Tools
 - **Git** - Version control
 - **Virtual Environment** - Python dependency isolation
+
+### Infrastructure
+- **Terraform** - Infrastructure as Code
+- **Docker** - Containerization platform
+- **AWS** - Cloud infrastructure (VPC, EC2, Load Balancer)
 
 ---
 
@@ -117,7 +130,7 @@ graph LR
 
 The application uses JSON file-based persistence for simplicity and portability:
 
-- **Storage Location**: `website/data/` directory
+- **Storage Location**: `data/` directory (at project root)
 - **Files**: 
   - `items.json` - Asset inventory data
   - `users.json` - User registry and assignments
@@ -156,8 +169,8 @@ The application uses JSON file-based persistence for simplicity and portability:
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/ArtiomKrits92/it-asset-management.git
-   cd it-asset-management
+   git clone https://github.com/ArtiomKrits92/Devops_Final_Project.git
+   cd Devops_Final_Project
    ```
 
 2. **Create and activate virtual environment**
@@ -179,7 +192,7 @@ The application uses JSON file-based persistence for simplicity and portability:
 
 5. **Access the application**
    - Open your browser and navigate to `http://localhost:31415`
-   - The application will automatically create data files in `website/data/` on first run
+   - The application will automatically create data files in `data/` directory on first run
 
 ### 2.3 Containerization with Docker
 
@@ -335,10 +348,6 @@ Devops_Final_Project/
 │   ├── file_manager.py                    # File persistence layer
 │   ├── demo.py                            # Demo data initialization
 │   │
-│   ├── data/                              # Data persistence directory
-│   │   ├── items.json                     # Asset inventory data
-│   │   └── users.json                     # User registry data
-│   │
 │   └── templates/                         # Jinja2 HTML templates
 │       ├── base.html                      # Base template with navigation
 │       ├── index.html                     # Dashboard/homepage
@@ -353,6 +362,16 @@ Devops_Final_Project/
 │       ├── show_user_items.html           # View user's assigned assets
 │       ├── show_stock_items.html          # Inventory listing
 │       └── stock_by_categories.html       # Category reports
+│
+├── terraform/                             # Infrastructure as Code
+│   ├── main.tf                            # AWS resources definition
+│   ├── variables.tf                       # Input variables
+│   ├── outputs.tf                          # Output values (IPs, URLs)
+│   └── terraform.tfvars.example            # Example variable values
+│
+├── data/                                  # Data persistence directory
+│   ├── items.json                         # Asset inventory data
+│   └── users.json                         # User registry data
 │
 ├── venv/                                  # Python virtual environment
 ├── requirements.txt                       # Python dependencies
@@ -397,6 +416,18 @@ Devops_Final_Project/
 - **State Management**: Careful handling of in-memory dictionaries and file synchronization prevents data loss
 - **Error Handling**: Proper error handling and user feedback prevents confusion and improves reliability
 
+### Docker Phase
+- **Containerization Benefits**: Docker ensures the application runs identically across different environments, eliminating "it works on my machine" issues
+- **Image Optimization**: Using `.dockerignore` significantly reduces build context size and speeds up image builds by excluding unnecessary files
+- **Data Persistence**: Volume mounting (`-v $(pwd)/data:/data`) allows data to persist outside the container, so data isn't lost when containers are removed
+- **Portability**: Once containerized, the application can be easily deployed to any Docker-compatible platform (local, cloud, CI/CD pipelines)
+
+### Terraform Phase
+- **Infrastructure as Code Advantages**: Terraform configuration files serve as documentation and allow infrastructure to be version-controlled alongside application code
+- **Git Ignore Importance**: Properly excluding `.terraform/` directory and state files from Git prevents committing large binary files and sensitive state information
+- **AWS Resource Dependencies**: Understanding resource dependencies (VPC → Subnets → Instances) is crucial for proper infrastructure provisioning order
+- **State Management**: Terraform state files track resource relationships, making updates and destruction predictable and safe
+
 ---
 
 ## 📄 License
@@ -410,18 +441,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 **Artiom Krits**
 
 - GitHub: [@ArtiomKrits92](https://github.com/ArtiomKrits92)
-- Project Link: [https://github.com/ArtiomKrits92/it-asset-management](https://github.com/ArtiomKrits92/it-asset-management)
+- Project Link: [https://github.com/ArtiomKrits92/Devops_Final_Project](https://github.com/ArtiomKrits92/Devops_Final_Project)
 - LinkedIn: [https://www.linkedin.com/in/artiom-krits-%F0%9F%8E%97%EF%B8%8F-855372202/](https://www.linkedin.com/in/artiom-krits-%F0%9F%8E%97%EF%B8%8F-855372202/)
-
----
-
-## 🙏 Acknowledgments
-
-- Flask community for excellent documentation and framework
-- Bootstrap team for the responsive UI framework
-- Jinja2 developers for the powerful templating engine
-- Open source community for invaluable tools and resources
-
----
-
-**⭐ If you found this project helpful, please consider giving it a star!**
