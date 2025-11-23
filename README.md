@@ -1,8 +1,10 @@
 # 🖥️ IT Asset Management System
 
-[![Python](https://img.shields.io/badge/Python-3.13-blue.svg)](https://www.python.org/)
-[![Flask](https://img.shields.io/badge/Flask-3.0-green.svg)](https://flask.palletsprojects.com/)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+![Technion](https://img.shields.io/badge/Technion-DevOps_2025-blue)
+![Python](https://img.shields.io/badge/Python-3.13-blue.svg)
+![Flask](https://img.shields.io/badge/Flask-3.0-green.svg)
+![Status](https://img.shields.io/badge/Status-Phase_1_Complete-success)
+![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
 > A Flask web application for managing IT assets with persistent file-based storage. Track hardware, accessories, licenses, and user assignments through an intuitive web interface.
 
@@ -17,6 +19,7 @@
 - [Tech Stack](#-tech-stack)
 - [Features](#-features)
 - [Data Persistence](#-data-persistence)
+- [Demo](#-demo)
 - [Getting Started](#-getting-started)
 - [Project Structure](#-project-structure)
 - [API Endpoints](#-api-endpoints)
@@ -127,6 +130,12 @@ The application uses JSON file-based persistence for simplicity and portability:
   }
 }
 ```
+
+---
+
+## 🎬 Demo
+
+> Screenshots and demo GIFs will be added as the project progresses
 
 ---
 
