@@ -3,7 +3,7 @@
 ![Technion](https://img.shields.io/badge/Technion-DevOps_2025-blue)
 ![Python](https://img.shields.io/badge/Python-3.13-blue.svg)
 ![Flask](https://img.shields.io/badge/Flask-3.0-green.svg)
-![Status](https://img.shields.io/badge/Status-Phase_3_Complete-success)
+![Status](https://img.shields.io/badge/Status-Phase_4_Complete-success)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
 > A Flask web application for managing IT assets with persistent file-based storage. Track hardware, accessories, licenses, and user assignments through an intuitive web interface.
@@ -420,6 +420,29 @@ You should see all three nodes (one master and two workers) in "Ready" status.
 ```
 Devops_Final_Project/
 │
+├── ansible/                               # Configuration Management
+│   ├── ansible.cfg                        # Ansible configuration
+│   ├── inventory.ini                     # EC2 instances inventory
+│   ├── playbooks/                         # Automation playbooks
+│   │   ├── 01-common-setup.yml            # Install Docker & K8s on all nodes
+│   │   ├── 02-master-setup.yml            # Initialize K8s master
+│   │   ├── 03-worker-setup.yml            # Join workers to cluster
+│   │   └── 04-nfs-setup.yml               # Setup shared storage
+│   └── files/
+│       └── daemon.json                    # Docker configuration
+│
+├── data/                                  # Data persistence directory
+│   ├── items.json                         # Asset inventory data
+│   └── users.json                         # User registry data
+│
+├── terraform/                             # Infrastructure as Code
+│   ├── main.tf                            # AWS resources definition
+│   ├── variables.tf                       # Input variables
+│   ├── outputs.tf                          # Output values (IPs, URLs)
+│   └── terraform.tfvars.example            # Example variable values
+│
+├── venv/                                  # Python virtual environment
+│
 ├── website/                               # Main application directory
 │   ├── app.py                             # Flask application entry point
 │   ├── data.py                            # Data models and in-memory databases
@@ -441,17 +464,6 @@ Devops_Final_Project/
 │       ├── show_stock_items.html          # Inventory listing
 │       └── stock_by_categories.html       # Category reports
 │
-├── terraform/                             # Infrastructure as Code
-│   ├── main.tf                            # AWS resources definition
-│   ├── variables.tf                       # Input variables
-│   ├── outputs.tf                          # Output values (IPs, URLs)
-│   └── terraform.tfvars.example            # Example variable values
-│
-├── data/                                  # Data persistence directory
-│   ├── items.json                         # Asset inventory data
-│   └── users.json                         # User registry data
-│
-├── venv/                                  # Python virtual environment
 ├── requirements.txt                       # Python dependencies
 ├── Dockerfile                             # Docker container definition
 ├── .dockerignore                          # Docker build exclusions
