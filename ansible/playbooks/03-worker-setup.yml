@@ -1,0 +1,16 @@
+---
+- name: Join worker nodes to cluster
+  hosts: workers
+  become: true
+  
+  tasks:
+    # Fetch join command from master
+    - name: Fetch join command from master
+      slurp:
+        src: /tmp/join-command.sh
+      delegate_to: 10.0.1.10
+      register: join_command_content
+    
+    # Join the cluster
+    - name: Join Kubernetes cluster
+      shell: "{{ join_command_content.content | b64decode }}"

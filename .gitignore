@@ -22,3 +22,7 @@ data/*.json
 *.tfstate.*
 *.tfplan
 .terraform.lock.hcl
+
+# Ansible
+*.retry
+ansible/.vault_pass

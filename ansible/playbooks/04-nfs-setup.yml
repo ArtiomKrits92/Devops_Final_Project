@@ -1,0 +1,56 @@
+---
+- name: Setup NFS server on master
+  hosts: master
+  become: true
+  
+  tasks:
+    # Install NFS server
+    - name: Install NFS server
+      apt:
+        name: nfs-kernel-server
+        state: present
+    
+    # Create NFS share directory
+    - name: Create NFS share directory
+      file:
+        path: /data/nfs-share
+        state: directory
+        mode: '0777'
+    
+    # Configure NFS exports
+    - name: Configure NFS exports
+      lineinfile:
+        path: /etc/exports
+        line: '/data/nfs-share 10.0.1.0/24(rw,sync,no_subtree_check,no_root_squash)'
+        create: yes
+    
+    # Restart NFS server
+    - name: Restart NFS server
+      systemd:
+        name: nfs-kernel-server
+        state: restarted
+
+- name: Mount NFS on workers
+  hosts: workers
+  become: true
+  
+  tasks:
+    # Install NFS client
+    - name: Install NFS client
+      apt:
+        name: nfs-common
+        state: present
+    
+    # Create mount point
+    - name: Create mount directory
+      file:
+        path: /data/nfs-share
+        state: directory
+    
+    # Mount NFS share
+    - name: Mount NFS share
+      mount:
+        path: /data/nfs-share
+        src: 10.0.1.10:/data/nfs-share
+        fstype: nfs
+        state: mounted
