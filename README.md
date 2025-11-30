@@ -23,6 +23,7 @@
 - [Getting Started](#-getting-started)
   - [Containerization with Docker](#23-containerization-with-docker)
   - [Infrastructure as Code with Terraform](#24-infrastructure-as-code-with-terraform)
+  - [Configuration Management with Ansible](#25-configuration-management-with-ansible)
 - [Project Structure](#-project-structure)
 - [API Endpoints](#-api-endpoints)
 - [Lessons Learned](#-lessons-learned)
@@ -334,6 +335,83 @@ export AWS_SESSION_TOKEN="your-session-token"
 ```
 
 The `terraform plan` command shows you exactly what will be created, modified, or destroyed before you actually make any changes. This is a safety feature that helps prevent mistakes.
+
+### 2.5 Configuration Management with Ansible
+
+Ansible automates server configuration tasks. After Terraform creates the EC2 instances, they are just blank Ubuntu servers. Ansible connects via SSH and runs commands to install Docker, Kubernetes, and configure the cluster automatically. This eliminates the need to manually SSH into each of the three servers and repeat the same installation steps. For student projects, this is valuable because you can destroy and recreate your infrastructure multiple times and Ansible will consistently configure it the same way each time.
+
+#### 2.5.1 Why Ansible
+
+Instead of manually SSHing into each server and running installation commands one by one, Ansible uses playbooks to automate the entire configuration process. When you run an Ansible playbook, it connects to all specified servers simultaneously and executes the same commands on each one. This ensures consistency across all nodes and saves significant time, especially when you need to set up multiple servers.
+
+This automation is particularly useful for DevOps projects where you need to:
+- Configure multiple servers with identical settings
+- Recreate infrastructure frequently (like with AWS Academy time limits)
+- Ensure all servers are configured exactly the same way
+- Reduce human error from manual configuration steps
+
+#### 2.5.2 Playbook Overview
+
+The Ansible configuration consists of four playbooks that run in sequence:
+
+1. **01-common-setup.yml** - Runs on all nodes (master and workers):
+   - Installs Docker, kubeadm, kubelet, and kubectl
+   - Configures Docker daemon for Kubernetes compatibility
+   - Disables swap memory (required for Kubernetes)
+
+2. **02-master-setup.yml** - Runs on master node only:
+   - Initializes Kubernetes cluster using `kubeadm init`
+   - Configures kubectl for the ubuntu user
+   - Installs Calico network plugin for pod networking
+   - Generates join command for worker nodes
+
+3. **03-worker-setup.yml** - Runs on worker nodes:
+   - Fetches join command from master node
+   - Joins workers to the Kubernetes cluster using the join command
+
+4. **04-nfs-setup.yml** - Sets up persistent storage:
+   - Configures NFS server on master node
+   - Creates shared directory for persistent volumes
+   - Mounts the NFS share on worker nodes
+   - Enables NFS service to start on boot
+
+#### 2.5.3 Ansible Commands
+
+**Installation on macOS:**
+
+```bash
+brew install ansible
+ansible --version
+```
+
+**Running playbooks (execute in order):**
+
+```bash
+cd ansible/
+
+# Run each playbook in sequence
+ansible-playbook -i inventory.ini playbooks/01-common-setup.yml
+ansible-playbook -i inventory.ini playbooks/02-master-setup.yml
+ansible-playbook -i inventory.ini playbooks/03-worker-setup.yml
+ansible-playbook -i inventory.ini playbooks/04-nfs-setup.yml
+```
+
+**Note:** Before running Ansible, you must have the SSH private key (`cluster-key.pem`) in your `~/.ssh/` directory with proper permissions:
+
+```bash
+chmod 400 ~/.ssh/cluster-key.pem
+```
+
+**Verify cluster status:**
+
+After all playbooks complete, you can verify the Kubernetes cluster is running:
+
+```bash
+ssh -i ~/.ssh/cluster-key.pem ubuntu@<master-ip>
+kubectl get nodes
+```
+
+You should see all three nodes (one master and two workers) in "Ready" status.
 
 ---
 
