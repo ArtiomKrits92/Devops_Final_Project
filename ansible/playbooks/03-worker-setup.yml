@@ -8,9 +8,16 @@
     - name: Fetch join command from master
       slurp:
         src: /tmp/join-command.sh
-      delegate_to: 10.0.1.10
+      delegate_to: "{{ groups['master'][0] }}"
       register: join_command_content
     
     # Join the cluster
     - name: Join Kubernetes cluster
       shell: "{{ join_command_content.content | b64decode }}"
+      args:
+        creates: /etc/kubernetes/kubelet.conf
+    
+    # Wait for node to be ready
+    - name: Wait for node registration
+      pause:
+        seconds: 30

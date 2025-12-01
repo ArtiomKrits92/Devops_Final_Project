@@ -7,12 +7,37 @@ variable "aws_region" {
 variable "instance_type" {
   description = "EC2 instance type"
   type        = string
-  default     = "t2.medium"
+  default     = "t3.medium"
 }
 
 variable "key_name" {
   description = "SSH key pair name"
   type        = string
   default     = "cluster-key"
+}
+
+variable "use_existing_vpc" {
+  description = "Whether to use existing VPC (for AWS Academy)"
+  type        = bool
+  default     = false
+}
+
+variable "existing_vpc_id" {
+  description = "Existing VPC ID (required if use_existing_vpc is true)"
+  type        = string
+  default     = ""
+}
+
+variable "existing_subnet_ids" {
+  description = "Existing subnet IDs (required if use_existing_vpc is true)"
+  type        = list(string)
+  default     = []
+}
+
+variable "ami_id" {
+  description = "Amazon Linux 2 AMI ID"
+  type        = string
+  # Amazon Linux 2 AMI for us-east-1 (update if needed)
+  default     = "ami-0c02fb55956c7d316"
 }
 

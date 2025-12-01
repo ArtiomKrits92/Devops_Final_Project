@@ -5,7 +5,7 @@
   collections:
     - ansible.posix
     - community.general
-  
+
   tasks:
     # Remove bad Docker repository if it exists
     - name: Remove Docker CE repository if exists
@@ -16,14 +16,15 @@
     # Disable Docker repository if it exists
     - name: Disable Docker CE repository
       shell: yum-config-manager --disable docker-ce-stable || true
-      ignore_errors: yes
+      ignore_errors: true
+      changed_when: false
     
     # Update system packages
     - name: Update yum packages
       yum:
         name: "*"
         state: latest
-        update_cache: yes
+        update_cache: true
     
     # Install Docker (Amazon Linux 2 has Docker in default repos)
     - name: Install Docker
@@ -37,7 +38,7 @@
       systemd:
         name: docker
         state: started
-        enabled: yes
+        enabled: true
     
     # Create Docker daemon directory
     - name: Create Docker daemon directory
@@ -59,6 +60,7 @@
     # Disable swap for Kubernetes
     - name: Disable swap
       shell: swapoff -a
+      changed_when: false
     
     - name: Comment out swap in /etc/fstab
       replace:
@@ -72,8 +74,8 @@
         name: "{{ item }}"
         value: "1"
         state: present
-        sysctl_set: yes
-        reload: yes
+        sysctl_set: true
+        reload: true
       loop:
         - net.bridge.bridge-nf-call-iptables
         - net.bridge.bridge-nf-call-ip6tables
@@ -90,10 +92,10 @@
       yum_repository:
         name: kubernetes
         description: Kubernetes repository
-        baseurl: https://pkgs.k8s.io/core:/stable:/v1.28/rpm/
-        gpgcheck: yes
-        gpgkey: https://pkgs.k8s.io/core:/stable:/v1.28/rpm/repodata/repomd.xml.key
-        enabled: yes
+        baseurl: "https://pkgs.k8s.io/core:/stable:/v1.28/rpm/"
+        gpgcheck: true
+        gpgkey: "https://pkgs.k8s.io/core:/stable:/v1.28/rpm/repodata/repomd.xml.key"
+        enabled: true
     
     # Install Kubernetes tools
     - name: Install kubeadm, kubelet, kubectl
@@ -103,16 +105,23 @@
           - kubelet
           - kubectl
         state: present
-        disable_gpg_check: yes
+        disable_gpg_check: true
     
     # Prevent kubelet from auto-updating
-    - name: Prevent kubelet from auto-updating
-      shell: |
-        systemctl stop kubelet
-        systemctl disable kubelet
+    - name: Stop kubelet service
+      systemd:
+        name: kubelet
+        state: stopped
+      ignore_errors: true
+
+    - name: Disable kubelet service
+      systemd:
+        name: kubelet
+        enabled: false
+      ignore_errors: true
     
     # Enable kubelet service
     - name: Enable kubelet service
       systemd:
         name: kubelet
-        enabled: yes
+        enabled: true

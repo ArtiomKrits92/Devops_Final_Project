@@ -6,8 +6,8 @@
   tasks:
     # Install NFS server
     - name: Install NFS server
-      apt:
-        name: nfs-kernel-server
+      yum:
+        name: nfs-utils
         state: present
     
     # Create NFS share directory
@@ -16,6 +16,8 @@
         path: /data/nfs-share
         state: directory
         mode: '0777'
+        owner: nobody
+        group: nobody
     
     # Configure NFS exports
     - name: Configure NFS exports
@@ -23,12 +25,26 @@
         path: /etc/exports
         line: '/data/nfs-share 10.0.1.0/24(rw,sync,no_subtree_check,no_root_squash)'
         create: yes
+        backup: yes
     
-    # Restart NFS server
-    - name: Restart NFS server
+    # Start and enable NFS services
+    - name: Start NFS server
       systemd:
-        name: nfs-kernel-server
-        state: restarted
+        name: nfs-server
+        state: started
+        enabled: yes
+    
+    - name: Start RPC bind
+      systemd:
+        name: rpcbind
+        state: started
+        enabled: yes
+    
+    # Export NFS shares
+    - name: Export NFS shares
+      shell: exportfs -ra
+      args:
+        creates: /var/lib/nfs/etab
 
 - name: Mount NFS on workers
   hosts: workers
@@ -37,8 +53,8 @@
   tasks:
     # Install NFS client
     - name: Install NFS client
-      apt:
-        name: nfs-common
+      yum:
+        name: nfs-utils
         state: present
     
     # Create mount point
@@ -46,11 +62,13 @@
       file:
         path: /data/nfs-share
         state: directory
+        mode: '0777'
     
     # Mount NFS share
     - name: Mount NFS share
       mount:
         path: /data/nfs-share
-        src: 10.0.1.10:/data/nfs-share
+        src: "10.0.1.10:/data/nfs-share"
         fstype: nfs
         state: mounted
+        opts: defaults,vers=4.1

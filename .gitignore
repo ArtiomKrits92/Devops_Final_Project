@@ -2,9 +2,13 @@
 __pycache__/
 *.py[cod]
 *.pyc
+venv/
+env/
+ENV/
 
 # Data files - exclude test data
 data/*.json
+website/data/*.json
 
 # MacOS
 .DS_Store
@@ -12,17 +16,29 @@ data/*.json
 # IDE
 .vscode/
 .cursor/
+.idea/
 
 # Logs
 *.log
 
 # Terraform
-.terraform/
-*.tfstate
-*.tfstate.*
-*.tfplan
-.terraform.lock.hcl
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.backup
+terraform/*.tfstate.*
+terraform/*.tfplan
+terraform/.terraform.lock.hcl
+terraform/terraform.tfvars
 
 # Ansible
 *.retry
 ansible/.vault_pass
+ansible/inventory.ini
+
+# AWS
+*.pem
+credentials.txt
+aws-credentials.txt
+
+# Docker
+docker-compose.override.yml

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: asset-manager
+description: A Helm chart for IT Asset Management Flask application
+type: application
+version: 0.1.0
+appVersion: "1.0"

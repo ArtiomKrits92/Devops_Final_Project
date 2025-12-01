@@ -70,40 +70,50 @@ def index():
 def add_item():
     global item_id_counter
     if request.method == "POST":
-        main_category = request.form.get("main_category")
-        sub_category = request.form.get("sub_category")
-        manufacturer = request.form.get("manufacturer")
-        model = request.form.get("model")
-        price = request.form.get("price")
+        try:
+            print(f"DEBUG: Received POST to /add_item")
+            main_category = request.form.get("main_category")
+            sub_category = request.form.get("sub_category")
+            manufacturer = request.form.get("manufacturer")
+            model = request.form.get("model")
+            price = request.form.get("price")
 
-        if main_category not in ["Assets", "Accessories", "Licenses"]:
-            flash("Invalid main category.", "danger")
+            if main_category not in ["Assets", "Accessories", "Licenses"]:
+                flash("Invalid main category.", "danger")
+                return redirect(url_for("add_item"))
+            
+            if not price or not price.replace('.', '', 1).isdigit():
+                flash("Price must be a valid number.", "danger")
+                return redirect(url_for("add_item"))
+
+            item_id = str(item_id_counter)
+            item_id_counter += 1
+
+            items_db[item_id] = {
+                "id": item_id,
+                "main_category": main_category,
+                "sub_category": sub_category,
+                "manufacturer": manufacturer,
+                "model": model,
+                "price": float(price),
+                "quantity": 1,
+                "status": "In Stock",
+                "assigned_to": None,
+            }
+            
+            print(f"DEBUG: About to save items to file...")
+            # Save changes to file
+            file_mgr.save_items(items_db)
+            print(f"DEBUG: File save completed")
+            
+            flash(f"Item '{sub_category} {manufacturer} {model}' added with ID {item_id}.", "success")
             return redirect(url_for("add_item"))
-        
-        if not price or not price.replace('.', '', 1).isdigit():
-            flash("Price must be a valid number.", "danger")
+        except Exception as e:
+            print(f"ERROR in add_item: {e}")
+            import traceback
+            traceback.print_exc()
+            flash(f"Error adding item: {str(e)}", "danger")
             return redirect(url_for("add_item"))
-
-        item_id = str(item_id_counter)
-        item_id_counter += 1
-
-        items_db[item_id] = {
-            "id": item_id,
-            "main_category": main_category,
-            "sub_category": sub_category,
-            "manufacturer": manufacturer,
-            "model": model,
-            "price": float(price),
-            "quantity": 1,
-            "status": "In Stock",
-            "assigned_to": None,
-        }
-        
-        # Save changes to file
-        file_mgr.save_items(items_db)
-        
-        flash(f"Item '{sub_category} {manufacturer} {model}' added with ID {item_id}.", "success")
-        return redirect(url_for("add_item"))
 
     return render_template("add_item.html", menu_links=get_menu_links())
 
@@ -207,21 +217,31 @@ def assign_item():
 def add_user():
     global user_id_counter
     if request.method == "POST":
-        full_name = request.form.get("full_name")
-        
-        if not full_name or not full_name.replace(" ", "").isalpha():
-            flash("Full name must only contain letters and spaces.", "danger")
+        try:
+            full_name = request.form.get("full_name")
+            print(f"DEBUG: Received POST to /add_user with full_name={full_name}")
+            
+            if not full_name or not full_name.replace(" ", "").isalpha():
+                flash("Full name must only contain letters and spaces.", "danger")
+                return redirect(url_for("add_user"))
+            
+            user_id = str(user_id_counter)
+            user_id_counter += 1
+            users_db[user_id] = {"name": full_name, "items": []}
+            
+            print(f"DEBUG: About to save users to file...")
+            # Save changes to file
+            file_mgr.save_users(users_db)
+            print(f"DEBUG: File save completed")
+            
+            flash(f"User '{full_name}' added with ID {user_id}.", "success")
             return redirect(url_for("add_user"))
-        
-        user_id = str(user_id_counter)
-        user_id_counter += 1
-        users_db[user_id] = {"name": full_name, "items": []}
-        
-        # Save changes to file
-        file_mgr.save_users(users_db)
-        
-        flash(f"User '{full_name}' added with ID {user_id}.", "success")
-        return redirect(url_for("add_user"))
+        except Exception as e:
+            print(f"ERROR in add_user: {e}")
+            import traceback
+            traceback.print_exc()
+            flash(f"Error adding user: {str(e)}", "danger")
+            return redirect(url_for("add_user"))
     
     return render_template("add_user.html", menu_links=get_menu_links())
 
@@ -264,4 +284,5 @@ def stock_by_categories():
     return render_template("stock_by_categories.html", stock=stock, menu_links=get_menu_links())
 
 if __name__ == "__main__":
+    # For local development only - production uses Gunicorn
     app.run(host="0.0.0.0", port=31415, debug=True)

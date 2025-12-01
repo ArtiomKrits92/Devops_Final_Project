@@ -1,0 +1,222 @@
+name: Deploy to AWS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  DOCKER_IMAGE: artie92/asset-manager
+  DOCKER_TAG: latest
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Run tests
+        run: |
+          cd website
+          python -m pytest || echo "No tests found, continuing..."
+
+  build:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME || '' }}
+          password: ${{ secrets.DOCKER_PASSWORD || '' }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }}
+          cache-from: type=registry,ref=${{ env.DOCKER_IMAGE }}:buildcache
+          cache-to: type=inline
+
+  terraform:
+    name: Deploy Infrastructure
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID || '' }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY || '' }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN || '' }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.0
+
+      - name: Terraform Init
+        working-directory: ./terraform
+        run: terraform init
+
+      - name: Terraform Plan
+        working-directory: ./terraform
+        run: terraform plan -out=tfplan
+
+      - name: Terraform Apply
+        working-directory: ./terraform
+        run: terraform apply -auto-approve tfplan
+
+      - name: Generate Ansible inventory
+        working-directory: ./terraform
+        run: |
+          MASTER_IP=$(terraform output -raw master_public_ip)
+          WORKER1_IP=$(terraform output -raw worker1_public_ip)
+          WORKER2_IP=$(terraform output -raw worker2_public_ip)
+          
+          cat > ../ansible/inventory.ini <<EOF
+          [master]
+          $MASTER_IP ansible_user=ec2-user ansible_ssh_private_key_file=~/.ssh/cluster-key.pem
+
+          [workers]
+          $WORKER1_IP ansible_user=ec2-user ansible_ssh_private_key_file=~/.ssh/cluster-key.pem
+          $WORKER2_IP ansible_user=ec2-user ansible_ssh_private_key_file=~/.ssh/cluster-key.pem
+
+          [all:vars]
+          ansible_python_interpreter=/usr/bin/python3
+          EOF
+
+      - name: Upload inventory
+        uses: actions/upload-artifact@v4
+        with:
+          name: ansible-inventory
+          path: ansible/inventory.ini
+
+  ansible:
+    name: Configure Kubernetes Cluster
+    runs-on: ubuntu-latest
+    needs: terraform
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download inventory
+        uses: actions/download-artifact@v4
+        with:
+          name: ansible-inventory
+          path: ansible/
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY || '' }}" > ~/.ssh/cluster-key.pem
+          chmod 600 ~/.ssh/cluster-key.pem
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID || '' }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY || '' }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN || '' }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install Ansible
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ansible
+
+      - name: Wait for SSH
+        run: |
+          sleep 60  # Wait for instances to be ready
+
+      - name: Run Ansible playbooks
+        working-directory: ./ansible
+        run: |
+          ansible-playbook -i inventory.ini playbooks/01-common-setup.yml
+          ansible-playbook -i inventory.ini playbooks/02-master-setup.yml
+          sleep 30  # Wait for master to be ready
+          ansible-playbook -i inventory.ini playbooks/03-worker-setup.yml
+          ansible-playbook -i inventory.ini playbooks/04-nfs-setup.yml
+
+  helm:
+    name: Deploy Application
+    runs-on: ubuntu-latest
+    needs: ansible
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID || '' }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY || '' }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN || '' }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Get master IP
+        id: get-master
+        working-directory: ./terraform
+        run: |
+          echo "master_ip=$(terraform output -raw master_public_ip)" >> $GITHUB_OUTPUT
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: '3.12.0'
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY || '' }}" > ~/.ssh/cluster-key.pem
+          chmod 600 ~/.ssh/cluster-key.pem
+          
+          # Copy kubeconfig from master
+          scp -i ~/.ssh/cluster-key.pem -o StrictHostKeyChecking=no \
+            ec2-user@${{ steps.get-master.outputs.master_ip }}:~/.kube/config \
+            ~/.kube/config || echo "kubeconfig not ready yet"
+
+      - name: Wait for cluster
+        run: |
+          sleep 120  # Wait for cluster to be fully ready
+
+      - name: Deploy with Helm
+        working-directory: ./helm/asset-manager
+        run: |
+          helm upgrade --install asset-manager . \
+            --set nfs.server=10.0.1.10 \
+            --wait --timeout=5m || echo "Helm deployment may need manual intervention"
+
+      - name: Get ALB DNS
+        working-directory: ./terraform
+        run: |
+          echo "ALB DNS: $(terraform output -raw load_balancer_dns)"

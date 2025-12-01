@@ -1,5 +1,16 @@
 # Copy this file to terraform.tfvars and update with your values
+
+# AWS Configuration
 aws_region    = "us-east-1"
-instance_type = "t2.medium"
-key_name      = "your-key-name-here"
+instance_type = "t3.medium"
+key_name      = "cluster-key"
+
+# VPC Configuration (for AWS Academy - use existing VPC if needed)
+use_existing_vpc = false
+# If use_existing_vpc = true, uncomment and set these:
+# existing_vpc_id = "vpc-xxxxx"
+# existing_subnet_ids = ["subnet-xxxxx", "subnet-yyyyy"]
+
+# AMI Configuration (leave empty to auto-detect Amazon Linux 2)
+# ami_id = ""
 
