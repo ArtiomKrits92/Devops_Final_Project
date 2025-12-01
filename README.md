@@ -17,8 +17,9 @@ This project deploys a Flask IT Asset Management application to AWS using:
 
 ## Prerequisites
 
+- AWS Academy Cloud Architecting [146272] access (NOT Cloud Developing)
 - Terraform >= 1.5.0
-- Ansible >= 2.14
+- Ansible 2.14.x (NOT 2.20+, incompatible with Amazon Linux 2)
 - kubectl >= 1.28
 - Helm >= 3.12
 - AWS CLI >= 2.x
@@ -154,6 +155,28 @@ Devops_Final_Project/
 ```
 
 ## Known Issues
+
+### Ansible Version Compatibility
+
+**Issue:** Ansible 2.20+ has compatibility issues with Amazon Linux 2 (Python 3.7)
+
+**Error:** `Module result deserialization failed: No start of json char found`
+
+**Solution:** Use Ansible 2.14.x:
+
+```bash
+brew uninstall ansible
+/usr/bin/python3 -m pip install --user 'ansible-core==2.14.17'
+export PATH="$HOME/Library/Python/3.9/bin:$PATH"
+```
+
+### AWS Academy Course Selection
+
+**Critical:** This project requires **AWS Academy Cloud Architecting [146272]**
+
+**DO NOT use Cloud Developing [134969]** - it has restricted IAM permissions that block EC2 instance creation.
+
+### Other Issues
 
 - AWS Academy session expires after 4 hours
 - NFS requires ports 2049, 111 open in security groups

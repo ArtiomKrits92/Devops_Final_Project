@@ -2,28 +2,34 @@
 - name: Common setup for all nodes
   hosts: all
   become: true
+  collections:
+    - ansible.posix
+    - community.general
   
   tasks:
+    # Remove bad Docker repository if it exists
+    - name: Remove Docker CE repository if exists
+      file:
+        path: /etc/yum.repos.d/docker-ce.repo
+        state: absent
+    
+    # Disable Docker repository if it exists
+    - name: Disable Docker CE repository
+      shell: yum-config-manager --disable docker-ce-stable || true
+      ignore_errors: yes
+    
     # Update system packages
-    - name: Update apt cache
-      apt:
+    - name: Update yum packages
+      yum:
+        name: "*"
+        state: latest
         update_cache: yes
     
-    # Install Docker prerequisites
-    - name: Install Docker dependencies
-      apt:
-        name:
-          - apt-transport-https
-          - ca-certificates
-          - curl
-          - gnupg
-          - lsb-release
-        state: present
-    
-    # Install Docker
+    # Install Docker (Amazon Linux 2 has Docker in default repos)
     - name: Install Docker
-      apt:
-        name: docker.io
+      yum:
+        name:
+          - docker
         state: present
     
     # Start Docker service
@@ -32,6 +38,12 @@
         name: docker
         state: started
         enabled: yes
+    
+    # Create Docker daemon directory
+    - name: Create Docker daemon directory
+      file:
+        path: /etc/docker
+        state: directory
     
     # Configure Docker for Kubernetes
     - name: Copy Docker daemon.json
@@ -48,22 +60,59 @@
     - name: Disable swap
       shell: swapoff -a
     
+    - name: Comment out swap in /etc/fstab
+      replace:
+        path: /etc/fstab
+        regexp: '^([^#].*swap.*)$'
+        replace: '#\1'
+    
+    # Configure kernel parameters for Kubernetes
+    - name: Configure kernel parameters
+      ansible.posix.sysctl:
+        name: "{{ item }}"
+        value: "1"
+        state: present
+        sysctl_set: yes
+        reload: yes
+      loop:
+        - net.bridge.bridge-nf-call-iptables
+        - net.bridge.bridge-nf-call-ip6tables
+        - net.ipv4.ip_forward
+    
+    # Load br_netfilter module
+    - name: Load br_netfilter module
+      community.general.modprobe:
+        name: br_netfilter
+        state: present
+    
     # Add Kubernetes repository
-    - name: Add Kubernetes apt key
-      shell: curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.28/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-    
     - name: Add Kubernetes repository
-      shell: echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.28/deb/ /' | tee /etc/apt/sources.list.d/kubernetes.list
-    
-    - name: Update apt cache again
-      apt:
-        update_cache: yes
+      yum_repository:
+        name: kubernetes
+        description: Kubernetes repository
+        baseurl: https://pkgs.k8s.io/core:/stable:/v1.28/rpm/
+        gpgcheck: yes
+        gpgkey: https://pkgs.k8s.io/core:/stable:/v1.28/rpm/repodata/repomd.xml.key
+        enabled: yes
     
     # Install Kubernetes tools
     - name: Install kubeadm, kubelet, kubectl
-      apt:
+      yum:
         name:
           - kubeadm
           - kubelet
           - kubectl
         state: present
+        disable_gpg_check: yes
+    
+    # Prevent kubelet from auto-updating
+    - name: Prevent kubelet from auto-updating
+      shell: |
+        systemctl stop kubelet
+        systemctl disable kubelet
+    
+    # Enable kubelet service
+    - name: Enable kubelet service
+      systemd:
+        name: kubelet
+        enabled: yes

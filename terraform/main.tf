@@ -1,8 +1,26 @@
 provider "aws" {
-  region = "us-east-1"
+  region = var.aws_region
 }
 
+# Data source to get Amazon Linux 2 AMI
+data "aws_ami" "amazon_linux_2" {
+  most_recent = true
+  owners      = ["amazon"]
+
+  filter {
+    name   = "name"
+    values = ["amzn2-ami-hvm-*-x86_64-gp2"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+}
+
+# Conditional VPC creation
 resource "aws_vpc" "main" {
+  count    = var.use_existing_vpc ? 0 : 1
   cidr_block = "10.0.0.0/16"
 
   tags = {
@@ -10,10 +28,24 @@ resource "aws_vpc" "main" {
   }
 }
 
+# Data source for existing VPC
+data "aws_vpc" "existing" {
+  count = var.use_existing_vpc ? 1 : 0
+  id    = var.existing_vpc_id
+}
+
+locals {
+  vpc_id = var.use_existing_vpc ? var.existing_vpc_id : aws_vpc.main[0].id
+  subnet_ids = var.use_existing_vpc ? var.existing_subnet_ids : [aws_subnet.public[0].id, aws_subnet.public2[0].id]
+  primary_subnet_id = var.use_existing_vpc ? var.existing_subnet_ids[0] : aws_subnet.public[0].id
+}
+
 # Create a public subnet for our EC2 instances
 resource "aws_subnet" "public" {
-  vpc_id                  = aws_vpc.main.id
+  count                   = var.use_existing_vpc ? 0 : 1
+  vpc_id                  = aws_vpc.main[0].id
   cidr_block              = "10.0.1.0/24"
+  availability_zone       = "${var.aws_region}a"
   map_public_ip_on_launch = true
 
   tags = {
@@ -23,9 +55,10 @@ resource "aws_subnet" "public" {
 
 # Create a second public subnet in different availability zone for load balancer
 resource "aws_subnet" "public2" {
-  vpc_id                  = aws_vpc.main.id
+  count                   = var.use_existing_vpc ? 0 : 1
+  vpc_id                  = aws_vpc.main[0].id
   cidr_block              = "10.0.2.0/24"
-  availability_zone       = "us-east-1b"
+  availability_zone       = "${var.aws_region}b"
   map_public_ip_on_launch = true
 
   tags = {
@@ -35,7 +68,8 @@ resource "aws_subnet" "public2" {
 
 # Create Internet Gateway for internet access
 resource "aws_internet_gateway" "main" {
-  vpc_id = aws_vpc.main.id
+  count  = var.use_existing_vpc ? 0 : 1
+  vpc_id = aws_vpc.main[0].id
 
   tags = {
     Name = "main-igw"
@@ -44,12 +78,13 @@ resource "aws_internet_gateway" "main" {
 
 # Create route table for public subnet
 resource "aws_route_table" "public" {
-  vpc_id = aws_vpc.main.id
+  count  = var.use_existing_vpc ? 0 : 1
+  vpc_id = aws_vpc.main[0].id
 
   # Route all internet traffic through the Internet Gateway
   route {
     cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.main.id
+    gateway_id = aws_internet_gateway.main[0].id
   }
 
   tags = {
@@ -59,20 +94,22 @@ resource "aws_route_table" "public" {
 
 # Associate route table with public subnet
 resource "aws_route_table_association" "public" {
-  subnet_id      = aws_subnet.public.id
-  route_table_id = aws_route_table.public.id
+  count          = var.use_existing_vpc ? 0 : 1
+  subnet_id      = aws_subnet.public[0].id
+  route_table_id = aws_route_table.public[0].id
 }
 
 # Associate route table with second public subnet
 resource "aws_route_table_association" "public2" {
-  subnet_id      = aws_subnet.public2.id
-  route_table_id = aws_route_table.public.id
+  count          = var.use_existing_vpc ? 0 : 1
+  subnet_id      = aws_subnet.public2[0].id
+  route_table_id = aws_route_table.public[0].id
 }
 # Security group for Load Balancer
 resource "aws_security_group" "alb" {
   name        = "alb-security-group"
   description = "Allow HTTP traffic from internet"
-  vpc_id      = aws_vpc.main.id
+  vpc_id      = local.vpc_id
 
   ingress {
     from_port   = 80
@@ -97,7 +134,7 @@ resource "aws_security_group" "alb" {
 resource "aws_security_group" "instances" {
   name        = "instance-security-group"
   description = "Allow required ports for cluster"
-  vpc_id      = aws_vpc.main.id
+  vpc_id      = local.vpc_id
 
   # SSH access
   ingress {
@@ -152,14 +189,19 @@ resource "aws_security_group" "instances" {
 }
 # EC2 Instance - Master Node
 resource "aws_instance" "master" {
-  ami           = "ami-0c02fb55956c7d316"
-  instance_type = "t2.medium"
-  subnet_id     = aws_subnet.public.id
-  key_name      = "cluster-key"
+  ami           = var.ami_id != "" ? var.ami_id : data.aws_ami.amazon_linux_2.id
+  instance_type = var.instance_type
+  subnet_id     = local.primary_subnet_id
+  key_name      = var.key_name
 
   vpc_security_group_ids = [aws_security_group.instances.id]
 
   private_ip = "10.0.1.10"
+
+  user_data = <<-EOF
+              #!/bin/bash
+              yum update -y
+              EOF
 
   tags = {
     Name = "master-node"
@@ -168,14 +210,19 @@ resource "aws_instance" "master" {
 
 # EC2 Instance - Worker 1
 resource "aws_instance" "worker1" {
-  ami           = "ami-0c02fb55956c7d316"
-  instance_type = "t2.medium"
-  subnet_id     = aws_subnet.public.id
-  key_name      = "cluster-key"
+  ami           = var.ami_id != "" ? var.ami_id : data.aws_ami.amazon_linux_2.id
+  instance_type = var.instance_type
+  subnet_id     = local.primary_subnet_id
+  key_name      = var.key_name
 
   vpc_security_group_ids = [aws_security_group.instances.id]
 
   private_ip = "10.0.1.11"
+
+  user_data = <<-EOF
+              #!/bin/bash
+              yum update -y
+              EOF
 
   tags = {
     Name = "worker-node-1"
@@ -184,14 +231,19 @@ resource "aws_instance" "worker1" {
 
 # EC2 Instance - Worker 2
 resource "aws_instance" "worker2" {
-  ami           = "ami-0c02fb55956c7d316"
-  instance_type = "t2.medium"
-  subnet_id     = aws_subnet.public.id
-  key_name      = "cluster-key"
+  ami           = var.ami_id != "" ? var.ami_id : data.aws_ami.amazon_linux_2.id
+  instance_type = var.instance_type
+  subnet_id     = local.primary_subnet_id
+  key_name      = var.key_name
 
   vpc_security_group_ids = [aws_security_group.instances.id]
 
   private_ip = "10.0.1.12"
+
+  user_data = <<-EOF
+              #!/bin/bash
+              yum update -y
+              EOF
 
   tags = {
     Name = "worker-node-2"
@@ -203,7 +255,7 @@ resource "aws_lb" "main" {
   internal           = false
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb.id]
-  subnets            = [aws_subnet.public.id, aws_subnet.public2.id]
+  subnets            = local.subnet_ids
 
   tags = {
     Name = "app-alb"
@@ -215,7 +267,7 @@ resource "aws_lb_target_group" "app" {
   name     = "app-target-group"
   port     = 30080
   protocol = "HTTP"
-  vpc_id   = aws_vpc.main.id
+  vpc_id   = local.vpc_id
 
   health_check {
     path                = "/"
