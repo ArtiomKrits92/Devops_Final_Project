@@ -91,24 +91,33 @@ All 3 nodes in "Ready" status.
 **Chart deployed:** asset-manager
 
 **Status:**
-- Deployment created: 2 replicas
+- Deployment created: 2 replicas (High Availability)
 - Service: NodePort 30080
 - PersistentVolume: Bound (NFS)
 - PersistentVolumeClaim: Bound
+- Health checks configured to use `/health` endpoint
 
-**Note:** Pods in ImagePullBackOff - Docker image `artie92/asset-manager:latest` needs to be built and pushed to Docker Hub for ARM64 platform.
+**Improvements:**
+- Multi-platform Docker image built (amd64 + arm64)
+- Health endpoint added at `/health` for Kubernetes probes
+- Replicas set to 2 for high availability
+- Data reload on homepage for consistency
 
-### 7. Application Testing ⚠️ (Pending Image)
+### 7. Application Testing ✅
 
-**URL:** http://app-load-balancer-1503794428.us-east-1.elb.amazonaws.com
+**URL:** http://app-load-balancer-1323528933.us-east-1.elb.amazonaws.com
 
-**Status:** Waiting for Docker image availability
+**Health Endpoint:** http://app-load-balancer-1323528933.us-east-1.elb.amazonaws.com/health
 
-**Next Steps:**
-1. Build Docker image for ARM64 platform
-2. Push to Docker Hub as `artie92/asset-manager:latest`
-3. Pods will automatically pull and start
-4. ALB health checks will pass once pods are ready
+**Status:** Application deployed with all improvements
+
+**Features:**
+- ✅ Health endpoint returns HTTP 200
+- ✅ Homepage accessible
+- ✅ Dummy data loads on first access (6 users, 6 items)
+- ✅ POST requests working (no 504 timeouts)
+- ✅ High availability (2 replicas)
+- ✅ NFS persistence working
 
 ## Key Lessons Learned
 
