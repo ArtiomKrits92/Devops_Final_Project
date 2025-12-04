@@ -43,8 +43,22 @@ def get_menu_links():
         ("", "Calculate Stock", "stock_by_categories"),
     ]
 
+@app.route("/health")
+def health():
+    """Health check endpoint for Kubernetes probes and ALB"""
+    return {"status": "healthy", "service": "asset-manager"}, 200
+
 @app.route("/")
 def index():
+    # Reload data from files on each request to ensure consistency
+    global items_db, users_db
+    loaded_items = file_mgr.load_items()
+    loaded_users = file_mgr.load_users()
+    if loaded_items:
+        items_db.update(loaded_items)
+    if loaded_users:
+        users_db.update(loaded_users)
+    
     total_users = len(users_db)
     total_items = len(items_db)
     items_in_stock = sum(1 for item in items_db.values() if item["status"] == "In Stock")

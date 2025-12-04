@@ -274,7 +274,7 @@ resource "aws_lb_target_group" "app" {
   deregistration_delay = 30  # Wait 30s before removing unhealthy targets during draining
 
   health_check {
-    path                = "/"
+    path                = "/health"
     healthy_threshold   = 2
     unhealthy_threshold = 2
     timeout             = 10
@@ -288,12 +288,8 @@ resource "aws_lb_target_group" "app" {
   }
 }
 
-# ALB attributes - increase idle timeout to 120 seconds for POST requests (NFS writes can be slow)
-resource "aws_lb_load_balancer_attribute" "idle_timeout" {
-  load_balancer_arn = aws_lb.main.arn
-  key               = "idle_timeout.timeout_seconds"
-  value             = "120"
-}
+# ALB idle timeout is set via AWS CLI after creation (not supported as separate resource in this provider version)
+# Run: aws elbv2 modify-load-balancer-attributes --load-balancer-arn <arn> --attributes Key=idle_timeout.timeout_seconds,Value=120
 
 
 # Listener for Load Balancer
