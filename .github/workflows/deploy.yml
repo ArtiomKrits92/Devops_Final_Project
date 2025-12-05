@@ -286,14 +286,23 @@ jobs:
           done
           
           echo "Waiting for Kubernetes API..."
-          for i in {1..30}; do
+          # Try for 10 minutes max (60 attempts × 10 seconds)
+          for i in {1..60}; do
             if kubectl cluster-info 2>/dev/null; then
-              echo "Kubernetes API ready!"
+              echo "✅ K8s API ready after $((i * 10)) seconds"
               break
             fi
-            if [ $i -eq 30 ]; then
-              echo "Timeout waiting for Kubernetes API"
+            if [ $i -eq 60 ]; then
+              echo "❌ FAILED: K8s API not ready after 10 minutes"
+              echo "Checking master node status..."
+              ssh -i ~/.ssh/cluster-key.pem -o StrictHostKeyChecking=no \
+                ec2-user@$MASTER_IP "sudo systemctl status kubelet | head -20" || true
+              echo "kubectl cluster-info output:"
+              kubectl cluster-info 2>&1 || true
               exit 1
+            fi
+            if [ $((i % 6)) -eq 0 ]; then
+              echo "Attempt $i/60: Still waiting... ($((i * 10)) seconds elapsed)"
             fi
             sleep 10
           done
