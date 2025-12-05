@@ -5,6 +5,16 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      stage:
+        description: "What to run"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - ansible
+          - helm
 
 env:
   AWS_REGION: us-east-1
@@ -16,6 +26,7 @@ jobs:
   test:
     name: Run Tests
     runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event.inputs.stage == 'all'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -39,6 +50,7 @@ jobs:
     name: Build and Push Docker Image
     runs-on: ubuntu-latest
     needs: test
+    if: github.event_name == 'push' || github.event.inputs.stage == 'all'
     env:
       DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
       DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
@@ -69,6 +81,7 @@ jobs:
     name: Deploy Infrastructure
     runs-on: ubuntu-latest
     needs: build
+    if: github.event_name == 'push' || github.event.inputs.stage == 'all'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -110,7 +123,7 @@ jobs:
           MASTER_IP=$(terraform output -raw master_public_ip)
           WORKER1_IP=$(terraform output -raw worker1_public_ip)
           WORKER2_IP=$(terraform output -raw worker2_public_ip)
-          SSH_USER=$(terraform output -raw ssh_user)
+          SSH_USER="ec2-user"
 
           cat > ../ansible/inventory.ini <<EOF
           [master]
@@ -134,6 +147,7 @@ jobs:
     name: Configure Kubernetes Cluster
     runs-on: ubuntu-latest
     needs: terraform
+    if: github.event_name == 'push' || github.event.inputs.stage == 'all'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -150,6 +164,54 @@ jobs:
           echo "${{ secrets.SSH_PRIVATE_KEY || '' }}" > ~/.ssh/cluster-key.pem
           chmod 600 ~/.ssh/cluster-key.pem
 
+      - name: Install Ansible core 2.14.x
+        run: |
+          pip3 install 'ansible-core==2.14.17'
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Install required Ansible collections
+        run: |
+          ansible-galaxy collection install ansible.posix community.general
+
+      - name: Wait for SSH readiness
+        working-directory: ./ansible
+        run: |
+          MASTER_IP=$(grep -A0 "^\[master\]" inventory.ini | sed -n '2p' | awk '{print $1}')
+          WORKER_IPS=$(grep -A10 "^\[workers\]" inventory.ini | grep -v "^\[" | awk '{print $1}')
+          SSH_USER=$(grep -m1 ansible_user inventory.ini | sed -E 's/.*ansible_user=([^ ]+).*/\1/')
+
+          for ip in $MASTER_IP $WORKER_IPS; do
+            for i in {1..30}; do
+              if ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no \
+                   -i ~/.ssh/cluster-key.pem $SSH_USER@$ip "echo ready" 2>/dev/null; then
+                echo "SSH ready for $ip"
+                break
+              fi
+              if [ $i -eq 30 ]; then
+                echo "SSH timeout for $ip after 30 attempts"
+                exit 1
+              fi
+              sleep 10
+            done
+          done
+
+      - name: Run Ansible playbooks
+        working-directory: ./ansible
+        run: |
+          ansible-playbook -i inventory.ini playbooks/01-common-setup.yml
+          ansible-playbook -i inventory.ini playbooks/02-master-setup.yml
+          sleep 30
+          ansible-playbook -i inventory.ini playbooks/03-worker-setup.yml
+          ansible-playbook -i inventory.ini playbooks/04-nfs-setup.yml
+
+  ansible_only:
+    name: Configure Kubernetes Cluster (ansible only)
+    runs-on: ubuntu-latest
+    if: github.event.inputs.stage == 'ansible'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -157,6 +219,46 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY || '' }}
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN || '' }}
           aws-region: ${{ env.AWS_REGION }}
+
+      - name: Discover EC2 IPs by Name tag and write inventory
+        working-directory: ./ansible
+        run: |
+          SSH_USER="ec2-user"
+
+          MASTER_IP=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=master-node" "Name=instance-state-name,Values=running" \
+            --query "Reservations[0].Instances[0].PublicIpAddress" \
+            --output text --region $AWS_REGION)
+
+          WORKER1_IP=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=worker-node-1" "Name=instance-state-name,Values=running" \
+            --query "Reservations[0].Instances[0].PublicIpAddress" \
+            --output text --region $AWS_REGION)
+
+          WORKER2_IP=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=worker-node-2" "Name=instance-state-name,Values=running" \
+            --query "Reservations[0].Instances[0].PublicIpAddress" \
+            --output text --region $AWS_REGION)
+
+          cat > inventory.ini <<EOF
+          [master]
+          $MASTER_IP ansible_user=$SSH_USER ansible_ssh_private_key_file=~/.ssh/cluster-key.pem
+
+          [workers]
+          $WORKER1_IP ansible_user=$SSH_USER ansible_ssh_private_key_file=~/.ssh/cluster-key.pem
+          $WORKER2_IP ansible_user=$SSH_USER ansible_ssh_private_key_file=~/.ssh/cluster-key.pem
+
+          [all:vars]
+          ansible_python_interpreter=/usr/bin/python3
+          EOF
+
+          cat inventory.ini
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY || '' }}" > ~/.ssh/cluster-key.pem
+          chmod 600 ~/.ssh/cluster-key.pem
 
       - name: Install Ansible core 2.14.x
         run: |
@@ -202,17 +304,10 @@ jobs:
     name: Deploy Application
     runs-on: ubuntu-latest
     needs: ansible
+    if: github.event_name == 'push' || github.event.inputs.stage == 'all'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID || '' }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY || '' }}
-          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN || '' }}
-          aws-region: ${{ env.AWS_REGION }}
 
       - name: Download terraform state
         uses: actions/download-artifact@v4
@@ -224,12 +319,11 @@ jobs:
         working-directory: ./terraform
         run: terraform init -input=false
 
-      - name: Get master IP and SSH user
+      - name: Get master IP
         id: get-master
         working-directory: ./terraform
         run: |
           echo "master_ip=$(terraform output -raw master_public_ip)" >> $GITHUB_OUTPUT
-          echo "ssh_user=$(terraform output -raw ssh_user)" >> $GITHUB_OUTPUT
 
       - name: Setup kubectl
         uses: azure/setup-kubectl@v3
@@ -247,45 +341,33 @@ jobs:
 
       - name: Wait for kubeconfig and API
         run: |
-          SSH_USER="${{ steps.get-master.outputs.ssh_user }}"
+          SSH_USER="ec2-user"
           MASTER_IP="${{ steps.get-master.outputs.master_ip }}"
           mkdir -p ~/.kube
 
           for i in {1..60}; do
             if ssh -i ~/.ssh/cluster-key.pem -o StrictHostKeyChecking=no \
                  $SSH_USER@$MASTER_IP "test -f /etc/kubernetes/admin.conf" 2>/dev/null; then
-              echo "admin.conf ready"
               break
             fi
-            if [ $i -eq 60 ]; then
-              echo "Timeout waiting for admin.conf"
-              exit 1
-            fi
+            if [ $i -eq 60 ]; then exit 1; fi
             sleep 10
           done
 
           for i in {1..60}; do
             if scp -i ~/.ssh/cluster-key.pem -o StrictHostKeyChecking=no \
                  $SSH_USER@$MASTER_IP:~/.kube/config ~/.kube/config 2>/dev/null; then
-              echo "kubeconfig copied"
               break
             fi
-            if [ $i -eq 60 ]; then
-              echo "Timeout copying kubeconfig"
-              exit 1
-            fi
+            if [ $i -eq 60 ]; then exit 1; fi
             sleep 10
           done
 
           for i in {1..60}; do
             if kubectl --kubeconfig=~/.kube/config cluster-info 2>/dev/null; then
-              echo "Kubernetes API ready"
               break
             fi
-            if [ $i -eq 60 ]; then
-              echo "Timeout waiting for Kubernetes API"
-              exit 1
-            fi
+            if [ $i -eq 60 ]; then exit 1; fi
             sleep 10
           done
 
@@ -293,14 +375,8 @@ jobs:
         run: |
           for i in {1..30}; do
             READY=$(kubectl get nodes --no-headers 2>/dev/null | grep -c Ready || echo 0)
-            if [ "$READY" -ge 3 ]; then
-              echo "All 3 nodes Ready"
-              break
-            fi
-            if [ $i -eq 30 ]; then
-              echo "Timeout waiting for nodes Ready (found $READY/3)"
-              exit 1
-            fi
+            if [ "$READY" -ge 3 ]; then break; fi
+            if [ $i -eq 30 ]; then exit 1; fi
             sleep 10
           done
           kubectl get nodes
@@ -308,12 +384,71 @@ jobs:
       - name: Deploy with Helm
         working-directory: ./helm/asset-manager
         run: |
-          MASTER_PRIVATE_IP=$(cd ../../terraform && terraform output -raw master_private_ip)
           helm upgrade --install asset-manager . \
-            --set nfs.server=$MASTER_PRIVATE_IP \
+            --set nfs.server=10.0.1.10 \
             --wait --timeout=7m
 
       - name: Get ALB DNS
         working-directory: ./terraform
         run: |
           echo "ALB DNS: $(terraform output -raw load_balancer_dns)"
+
+  helm_only:
+    name: Deploy Application (helm only)
+    runs-on: ubuntu-latest
+    if: github.event.inputs.stage == 'helm'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID || '' }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY || '' }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN || '' }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Discover master public IP
+        id: discover
+        run: |
+          MASTER_IP=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=master-node" "Name=instance-state-name,Values=running" \
+            --query "Reservations[0].Instances[0].PublicIpAddress" \
+            --output text --region $AWS_REGION)
+          echo "master_ip=$MASTER_IP" >> $GITHUB_OUTPUT
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: "3.12.0"
+
+      - name: Setup SSH key + get kubeconfig
+        run: |
+          SSH_USER="ec2-user"
+          MASTER_IP="${{ steps.discover.outputs.master_ip }}"
+          mkdir -p ~/.ssh ~/.kube
+          echo "${{ secrets.SSH_PRIVATE_KEY || '' }}" > ~/.ssh/cluster-key.pem
+          chmod 600 ~/.ssh/cluster-key.pem
+          scp -i ~/.ssh/cluster-key.pem -o StrictHostKeyChecking=no \
+            $SSH_USER@$MASTER_IP:~/.kube/config ~/.kube/config
+
+      - name: Wait for nodes Ready
+        run: |
+          for i in {1..30}; do
+            READY=$(kubectl get nodes --no-headers 2>/dev/null | grep -c Ready || echo 0)
+            if [ "$READY" -ge 3 ]; then break; fi
+            if [ $i -eq 30 ]; then exit 1; fi
+            sleep 10
+          done
+          kubectl get nodes
+
+      - name: Deploy with Helm
+        working-directory: ./helm/asset-manager
+        run: |
+          helm upgrade --install asset-manager . \
+            --set nfs.server=10.0.1.10 \
+            --wait --timeout=7m
