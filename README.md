@@ -158,9 +158,17 @@ docker --version
 
    **Secret 2: `DOCKER_PASSWORD`**
    - Name: `DOCKER_PASSWORD`
-   - Value: Your Docker Hub password (or access token if you have 2FA enabled)
+   - Value: **Must be a Personal Access Token (PAT), NOT your password**
+   - **How to create a PAT:**
+     1. Go to: https://hub.docker.com/settings/security
+     2. Click "New Access Token"
+     3. Give it a name (e.g., "github-actions")
+     4. Set permissions: "Read, Write, Delete" (or at least "Read, Write")
+     5. Click "Generate"
+     6. **Copy the token immediately** (you won't see it again)
+     7. Paste this token as the value for `DOCKER_PASSWORD`
    - Click **Add secret**
-   - **Note:** If you have 2FA on Docker Hub, create an access token at https://hub.docker.com/settings/security instead of using your password
+   - **Important:** Docker Hub passwords do NOT work with GitHub Actions. You MUST use a Personal Access Token.
 
    **Secret 3: `AWS_ACCESS_KEY_ID`**
    - Name: `AWS_ACCESS_KEY_ID`
@@ -214,7 +222,7 @@ docker --version
      - `AWS_SECRET_ACCESS_KEY` - From AWS Academy Lab session
      - `AWS_SESSION_TOKEN` - From AWS Academy Lab session (expires after 4 hours)
      - `DOCKER_USERNAME` - Your Docker Hub username (e.g., `artie92`)
-     - `DOCKER_PASSWORD` - Your Docker Hub password or access token
+     - `DOCKER_PASSWORD` - Your Docker Hub Personal Access Token (PAT) - see instructions below
      - `SSH_PRIVATE_KEY` - Contents of your `~/.ssh/cluster-key.pem` file (copy entire file content)
 
 2. **Trigger the CI/CD Pipeline:**

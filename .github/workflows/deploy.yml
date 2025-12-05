@@ -146,10 +146,10 @@ jobs:
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN || '' }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Install Ansible
+      - name: Install Ansible 2.14.x (compatible with Amazon Linux 2)
         run: |
-          sudo apt-get update
-          sudo apt-get install -y ansible
+          pip3 install 'ansible-core==2.14.17' 'ansible==8.7.0'
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Wait for SSH
         run: |
