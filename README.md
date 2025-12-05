@@ -156,166 +156,74 @@ docker --version
    - Save to `~/.ssh/cluster-key.pem` (or your preferred location)
    - Set permissions: `chmod 400 ~/.ssh/cluster-key.pem`
 
-## GitHub Secrets
+## GitHub Secrets (Required for CI/CD)
 
-**CRITICAL:** The CI/CD pipeline will fail if these secrets are not configured. Follow these steps exactly:
+**The teacher/evaluator must add these 6 secrets to run the pipeline:**
 
-### Step-by-Step Setup:
+### Quick Setup (5 minutes)
 
-1. **Go to GitHub Repository Settings:**
-   - Open: https://github.com/ArtiomKrits92/Devops_Final_Project
-   - Click **Settings** (top menu)
-   - Click **Secrets and variables** → **Actions** (left sidebar)
-   - Click **New repository secret** button
+1. Go to: **Settings → Secrets and variables → Actions → New repository secret**
 
-2. **Add Each Secret (one at a time):**
+2. Add these 6 secrets:
 
-   **Secret 1: `DOCKER_USERNAME`**
-   - Name: `DOCKER_USERNAME`
-   - Value: Your Docker Hub username (e.g., `artie92`)
-   - Click **Add secret**
+| Secret Name | Value | Where to get it |
+|-------------|-------|-----------------|
+| `AWS_ACCESS_KEY_ID` | Your AWS access key | AWS Academy → AWS Details |
+| `AWS_SECRET_ACCESS_KEY` | Your AWS secret key | AWS Academy → AWS Details |
+| `AWS_SESSION_TOKEN` | Your AWS session token | AWS Academy → AWS Details |
+| `DOCKER_USERNAME` | Docker Hub username | Your Docker Hub account |
+| `DOCKER_PASSWORD` | Docker Hub access token | hub.docker.com/settings/security → New Access Token |
+| `SSH_PRIVATE_KEY` | Contents of vockey.pem | AWS Academy → download the .pem file, copy entire contents |
 
-   **Secret 2: `DOCKER_PASSWORD`**
-   - Name: `DOCKER_PASSWORD`
-   - Value: **Must be a Personal Access Token (PAT), NOT your password**
-   - **How to create a PAT:**
-     1. Go to: https://hub.docker.com/settings/security
-     2. Click "New Access Token"
-     3. Give it a name (e.g., "github-actions")
-     4. Set permissions: "Read, Write, Delete" (or at least "Read, Write")
-     5. Click "Generate"
-     6. **Copy the token immediately** (you won't see it again)
-     7. Paste this token as the value for `DOCKER_PASSWORD`
-   - Click **Add secret**
-   - **Important:** Docker Hub passwords do NOT work with GitHub Actions. You MUST use a Personal Access Token.
+### Getting the SSH Private Key
 
-   **Secret 3: `AWS_ACCESS_KEY_ID`**
-   - Name: `AWS_ACCESS_KEY_ID`
-   - Value: From AWS Academy Lab session → AWS Details
-   - Click **Add secret**
+1. In AWS Academy, go to **EC2 → Key Pairs**
+2. Find the key pair named `vockey` (default in AWS Academy)
+3. Download the `.pem` file
+4. Open it in a text editor
+5. Copy **everything** (including `-----BEGIN RSA PRIVATE KEY-----` and `-----END RSA PRIVATE KEY-----`)
+6. Paste as the value for `SSH_PRIVATE_KEY` secret
 
-   **Secret 4: `AWS_SECRET_ACCESS_KEY`**
-   - Name: `AWS_SECRET_ACCESS_KEY`
-   - Value: From AWS Academy Lab session → AWS Details
-   - Click **Add secret**
+### Important Notes
 
-   **Secret 5: `AWS_SESSION_TOKEN`**
-   - Name: `AWS_SESSION_TOKEN`
-   - Value: From AWS Academy Lab session → AWS Details (the long token)
-   - Click **Add secret**
-   - **Note:** This expires after 4 hours - update it when it expires
-
-   **Secret 6: `SSH_PRIVATE_KEY`**
-   - Name: `SSH_PRIVATE_KEY`
-   - Value: Copy the entire contents of your `~/.ssh/cluster-key.pem` file
-     ```bash
-     cat ~/.ssh/cluster-key.pem
-     # Copy everything including -----BEGIN RSA PRIVATE KEY----- and -----END RSA PRIVATE KEY-----
-     ```
-   - Click **Add secret**
-
-3. **Verify All Required Secrets Are Added:**
-   - You should see all 6 required secrets listed in the Secrets page:
-     - `AWS_ACCESS_KEY_ID`
-     - `AWS_SECRET_ACCESS_KEY`
-     - `AWS_SESSION_TOKEN`
-     - `DOCKER_USERNAME`
-     - `DOCKER_PASSWORD`
-     - `SSH_PRIVATE_KEY` (Academy PEM content)
-   - If any are missing, the CI/CD pipeline will fail
-
-4. **Optional: Override Key Pair Name (if not using `vockey`):**
-   - If your AWS Academy lab uses a different key pair name than `vockey`:
-   - Add secret: `KEY_NAME` with value = your key pair name
-   - Terraform will automatically use it via `TF_VAR_key_name`
-
-**Important Notes:**
-- Deploy only in `us-east-1` region (AWS Academy default)
-- AWS session tokens expire after 4 hours - update `AWS_SESSION_TOKEN` when it expires
-
-**Common Issues:**
-- ❌ **"Build and Push Docker Image" fails** → `DOCKER_USERNAME` or `DOCKER_PASSWORD` is missing/incorrect
-- ❌ **"Deploy Infrastructure" fails** → AWS credentials are missing/expired
-- ❌ **"Configure Kubernetes Cluster" fails** → `SSH_PRIVATE_KEY` is missing/incorrect
+- **Region:** Deploy only in `us-east-1` (AWS Academy default)
+- **Session token expires** after 4 hours - update `AWS_SESSION_TOKEN` when it expires
+- **Docker password** must be an Access Token (not your login password) - create at hub.docker.com/settings/security
 
 ## Deployment
 
-### Option 1: Automated (CI/CD) - Recommended
+### CI/CD Deployment (Recommended)
 
-**Prerequisites:**
-- GitHub repository with secrets configured (see "GitHub Secrets" section above)
-- AWS Academy session active
+**Step 1: Configure GitHub Secrets** (see table above)
 
-**Step-by-Step Instructions:**
+**Step 2: Trigger the Pipeline**
 
-1. **Configure GitHub Secrets** (if not already done):
-   - Go to your GitHub repository: https://github.com/ArtiomKrits92/Devops_Final_Project
-   - Navigate to: Settings → Secrets and variables → Actions
-   - Add the following secrets:
-     - `AWS_ACCESS_KEY_ID` - From AWS Academy Lab session
-     - `AWS_SECRET_ACCESS_KEY` - From AWS Academy Lab session
-     - `AWS_SESSION_TOKEN` - From AWS Academy Lab session (expires after 4 hours)
-     - `DOCKER_USERNAME` - Your Docker Hub username (e.g., `artie92`)
-     - `DOCKER_PASSWORD` - Your Docker Hub Personal Access Token (PAT) - see instructions below
-     - `SSH_PRIVATE_KEY` - Contents of your `~/.ssh/cluster-key.pem` file (copy entire file content)
+1. Go to: https://github.com/ArtiomKrits92/Devops_Final_Project/actions
+2. Click **"Deploy to AWS"** workflow
+3. Click **"Run workflow"** button (blue)
+4. Select branch: `main`
+5. Click **"Run workflow"** (green)
 
-2. **Trigger the CI/CD Pipeline:**
+**Step 3: Wait for Completion (~30 minutes)**
 
-   ### Method 1: Manual Trigger (Recommended for Evaluators)
+The pipeline runs 5 stages automatically:
+1. ✅ **Test** (~2 min) - Runs application tests
+2. ✅ **Build** (~5 min) - Builds Docker image, pushes to Docker Hub
+3. ✅ **Terraform** (~5 min) - Creates AWS infrastructure (VPC, EC2, ALB)
+4. ✅ **Ansible** (~15 min) - Configures Kubernetes cluster
+5. ✅ **Helm** (~3 min) - Deploys application
 
-   1. Go to: https://github.com/ArtiomKrits92/Devops_Final_Project/actions
-   2. Click on "Deploy to AWS" workflow in the left sidebar
-   3. Click "Run workflow" button (right side, blue button)
-   4. Select branch: `main`
-   5. Click "Run workflow" (green button)
+**Step 4: Get Application URL**
 
-   The pipeline will start immediately.
+After all stages pass (green checkmarks):
+1. Click on the **"Deploy Application"** job
+2. Expand **"Get ALB DNS"** step
+3. Copy the URL (e.g., `http://app-load-balancer-xxxxx.us-east-1.elb.amazonaws.com`)
+4. Open in browser - wait 2-3 minutes for ALB health checks
 
-   ### Method 2: Automatic Trigger (On Code Push)
-
-   ```bash
-   # Any push to main branch triggers the pipeline
-   git add .
-   git commit -m "Trigger deployment"
-   git push origin main
-   ```
-
-3. **Monitor the Pipeline:**
-
-   1. Go to: https://github.com/ArtiomKrits92/Devops_Final_Project/actions
-   2. Click on the running workflow
-   3. Watch progress through 5 stages:
-      - ✅ **Test** (~2 min) - Runs application tests
-      - ✅ **Build** (~5 min) - Builds and pushes Docker image to Docker Hub
-      - ✅ **Terraform** (~5 min) - Provisions AWS infrastructure (VPC, EC2 instances, ALB)
-      - ✅ **Ansible** (~15 min) - Configures Kubernetes cluster and NFS server
-      - ✅ **Helm** (~3 min) - Deploys application to Kubernetes
-
-   **Total time: ~30 minutes**
-
-   Wait until all workflow steps show green checkmarks ✅
-
-4. **Get Application URL:**
-
-   After pipeline completes successfully:
-
-   **Option 1:** Check workflow output:
-   - Click on the "Helm" stage
-   - Scroll to "Get ALB DNS" step
-   - Copy the DNS name
-
-   **Option 2:** Use Terraform locally:
-   ```bash
-   cd terraform
-   terraform output load_balancer_dns
-   ```
-
-   **Option 3:** AWS Console:
-   - EC2 → Load Balancers → Find "app-load-balancer" → Copy DNS name
-
-6. **Access Application:**
-   - Open browser: `http://<ALB_DNS>`
-   - Application should be fully functional with dummy data visible
+**The application will show:**
+- Dashboard with 6 users and 6 items
+- Full IT Asset Management functionality
 
 ### Option 2: Manual Deployment
 
