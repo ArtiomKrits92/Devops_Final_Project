@@ -150,6 +150,10 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/cluster-key.pem
           chmod 600 ~/.ssh/cluster-key.pem
+          # Verify key format
+          echo "Verifying SSH key format..."
+          head -1 ~/.ssh/cluster-key.pem | grep -q "BEGIN.*PRIVATE KEY" && echo "✅ Key format looks correct" || echo "⚠️ Key format may be incorrect"
+          echo "Key file size: $(wc -c < ~/.ssh/cluster-key.pem) bytes"
 
       - name: Install Ansible core 2.14.x
         run: |
@@ -192,17 +196,27 @@ jobs:
                 echo ""
                 echo "=== DIAGNOSTIC INFORMATION ==="
                 echo ""
-                echo "1. Checking instance status via AWS CLI..."
+                echo "1. Checking instance status and key pair name..."
+                INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=ip-address,Values=$ip" \
+                  --query 'Reservations[*].Instances[*].[InstanceId,State.Name,KeyName,PublicIpAddress]' \
+                  --output text | head -1)
+                echo "Instance details: $INSTANCE_ID"
                 aws ec2 describe-instances --filters "Name=ip-address,Values=$ip" \
-                  --query 'Reservations[*].Instances[*].[InstanceId,State.Name,PublicIpAddress,PrivateIpAddress]' \
+                  --query 'Reservations[*].Instances[*].[InstanceId,State.Name,KeyName,PublicIpAddress,PrivateIpAddress]' \
                   --output table || echo "Could not query instance status"
+                echo ""
+                echo "⚠️ IMPORTANT: Verify that the key pair name above matches 'vockey'"
+                echo "   and that SSH_PRIVATE_KEY secret contains the correct vockey.pem content"
                 echo ""
                 echo "2. Testing SSH connection (showing actual error)..."
                 ssh -v -o ConnectTimeout=5 -o StrictHostKeyChecking=no \
-                    -i ~/.ssh/cluster-key.pem ec2-user@$ip "echo test" 2>&1 | head -20 || true
+                    -i ~/.ssh/cluster-key.pem ec2-user@$ip "echo test" 2>&1 | head -30 || true
                 echo ""
                 echo "3. Checking if key file exists and permissions..."
                 ls -la ~/.ssh/cluster-key.pem || echo "Key file not found"
+                echo ""
+                echo "4. First line of key file (should start with '-----BEGIN'):"
+                head -1 ~/.ssh/cluster-key.pem || echo "Could not read key file"
                 echo ""
                 exit 1
               fi
