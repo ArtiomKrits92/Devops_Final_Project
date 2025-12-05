@@ -159,7 +159,7 @@ jobs:
 
       - name: Install Ansible 2.14.x (compatible with Amazon Linux 2)
         run: |
-          pip3 install 'ansible-core==2.14.17' 'ansible==8.7.0'
+          pip3 install 'ansible-core==2.14.17'
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Wait for SSH
