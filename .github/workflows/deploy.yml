@@ -334,34 +334,41 @@ jobs:
           done
           
           echo "Copying kubeconfig..."
+          KUBECONFIG_PATH="$HOME/.kube/config"
           for i in {1..30}; do
+            # Use absolute path on remote side
             if scp -i ~/.ssh/cluster-key.pem -o StrictHostKeyChecking=no \
-                 ec2-user@$MASTER_IP:~/.kube/config ~/.kube/config 2>/dev/null; then
+                 ec2-user@$MASTER_IP:/home/ec2-user/.kube/config "$KUBECONFIG_PATH" 2>/dev/null; then
               echo "kubeconfig copied!"
               break
             fi
             if [ $i -eq 30 ]; then
               echo "Timeout copying kubeconfig"
+              echo "Trying to debug..."
+              ssh -i ~/.ssh/cluster-key.pem -o StrictHostKeyChecking=no \
+                  ec2-user@$MASTER_IP "ls -la /home/ec2-user/.kube/config" || echo "File not found on master"
               exit 1
             fi
             sleep 10
           done
           
           echo "Waiting for Kubernetes API..."
-          # Verify kubeconfig exists
-          if [ ! -f ~/.kube/config ]; then
-            echo "ERROR: kubeconfig file not found at ~/.kube/config"
+          # Verify kubeconfig exists using absolute path
+          if [ ! -f "$KUBECONFIG_PATH" ]; then
+            echo "ERROR: kubeconfig file not found at $KUBECONFIG_PATH"
+            ls -la ~/.kube/ || echo "~/.kube directory doesn't exist"
             exit 1
           fi
-          echo "kubeconfig file exists, size: $(wc -c < ~/.kube/config) bytes"
+          echo "kubeconfig file exists, size: $(wc -c < "$KUBECONFIG_PATH") bytes"
           
-          # Set KUBECONFIG explicitly
-          export KUBECONFIG=~/.kube/config
+          # Set KUBECONFIG explicitly using absolute path
+          export KUBECONFIG="$KUBECONFIG_PATH"
+          echo "KUBECONFIG set to: $KUBECONFIG"
           
           # Try for 10 minutes max (60 attempts × 10 seconds)
           for i in {1..60}; do
-            # Use timeout to prevent kubectl from hanging
-            if timeout 5 kubectl --kubeconfig=~/.kube/config cluster-info 2>/dev/null; then
+            # Use timeout to prevent kubectl from hanging, use absolute path
+            if timeout 5 kubectl --kubeconfig="$KUBECONFIG_PATH" cluster-info 2>/dev/null; then
               echo "✅ K8s API ready after $((i * 10)) seconds"
               break
             fi
@@ -395,13 +402,14 @@ jobs:
               echo "Attempt $i/60: Still waiting... ($((i * 10)) seconds elapsed)"
               # Show what kubectl is actually returning
               echo "Testing kubectl connection..."
-              timeout 5 kubectl --kubeconfig=~/.kube/config cluster-info 2>&1 | head -3 || echo "kubectl failed or timed out"
+              timeout 5 kubectl --kubeconfig="$KUBECONFIG_PATH" cluster-info 2>&1 | head -3 || echo "kubectl failed or timed out"
             fi
             sleep 10
           done
 
       - name: Wait for nodes Ready
         run: |
+          export KUBECONFIG="$HOME/.kube/config"
           echo "Waiting for all 3 nodes to be Ready..."
           for i in {1..30}; do
             READY=$(kubectl get nodes --no-headers 2>/dev/null | grep -c " Ready" || echo 0)
@@ -422,6 +430,7 @@ jobs:
       - name: Deploy with Helm
         working-directory: ./helm/asset-manager
         run: |
+          export KUBECONFIG="$HOME/.kube/config"
           echo "Deploying application with Helm..."
           helm upgrade --install asset-manager . \
             --set nfs.server=10.0.1.10 \
