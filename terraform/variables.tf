@@ -11,9 +11,9 @@ variable "instance_type" {
 }
 
 variable "key_name" {
-  description = "SSH key pair name"
+  description = "EC2 key pair name. AWS Academy default key in us-east-1 is usually 'vockey'. Override if different."
   type        = string
-  default     = "cluster-key"
+  default     = "vockey"
 }
 
 variable "use_existing_vpc" {

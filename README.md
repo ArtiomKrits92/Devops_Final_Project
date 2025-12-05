@@ -133,9 +133,28 @@ docker --version
    - AWS_SECRET_ACCESS_KEY
    - AWS_SESSION_TOKEN
    - AWS_REGION (usually us-east-1)
-3. Create SSH key pair named `cluster-key` in EC2
-4. Download key file to `~/.ssh/cluster-key.pem`
-5. Set permissions: `chmod 400 ~/.ssh/cluster-key.pem`
+3. **AWS Academy Key Pair Note (IMPORTANT):**
+   
+   This project launches EC2 instances using an existing AWS key pair.
+   
+   In AWS Academy Learner Lab (region us-east-1), the default key pair is usually:
+   - **`vockey`**
+   
+   Terraform defaults to `vockey`. If your lab uses a different key name, override it:
+   
+   **Manual usage:**
+   ```bash
+   terraform apply -auto-approve -var="key_name=<your-lab-keypair-name>"
+   ```
+   
+   **CI/CD override (optional):**
+   Add a GitHub secret `KEY_NAME` and it will be used automatically via `TF_VAR_key_name`.
+4. Download the PEM file from AWS Academy:
+   - Go to EC2 → Key Pairs
+   - Find your key pair (usually `vockey`)
+   - Download the `.pem` file
+   - Save to `~/.ssh/cluster-key.pem` (or your preferred location)
+   - Set permissions: `chmod 400 ~/.ssh/cluster-key.pem`
 
 ## GitHub Secrets
 
@@ -195,9 +214,24 @@ docker --version
      ```
    - Click **Add secret**
 
-3. **Verify All 6 Secrets Are Added:**
-   - You should see all 6 secrets listed in the Secrets page
+3. **Verify All Required Secrets Are Added:**
+   - You should see all 6 required secrets listed in the Secrets page:
+     - `AWS_ACCESS_KEY_ID`
+     - `AWS_SECRET_ACCESS_KEY`
+     - `AWS_SESSION_TOKEN`
+     - `DOCKER_USERNAME`
+     - `DOCKER_PASSWORD`
+     - `SSH_PRIVATE_KEY` (Academy PEM content)
    - If any are missing, the CI/CD pipeline will fail
+
+4. **Optional: Override Key Pair Name (if not using `vockey`):**
+   - If your AWS Academy lab uses a different key pair name than `vockey`:
+   - Add secret: `KEY_NAME` with value = your key pair name
+   - Terraform will automatically use it via `TF_VAR_key_name`
+
+**Important Notes:**
+- Deploy only in `us-east-1` region (AWS Academy default)
+- AWS session tokens expire after 4 hours - update `AWS_SESSION_TOKEN` when it expires
 
 **Common Issues:**
 - ❌ **"Build and Push Docker Image" fails** → `DOCKER_USERNAME` or `DOCKER_PASSWORD` is missing/incorrect
@@ -305,15 +339,18 @@ docker --version
    aws sts get-caller-identity
    ```
 
-2. **Create SSH Key Pair:**
+2. **SSH Key Pair (AWS Academy):**
    
+   **For AWS Academy Learner Lab:**
+   - The default key pair is usually `vockey` (already exists in your lab)
+   - Download the PEM file from EC2 → Key Pairs → `vockey`
+   - Save to `~/.ssh/cluster-key.pem`
+   - Set permissions: `chmod 400 ~/.ssh/cluster-key.pem`
+   
+   **If using a different key pair name:**
    ```bash
-   # Create key pair in AWS EC2
-   aws ec2 create-key-pair --key-name cluster-key --query 'KeyMaterial' --output text > ~/.ssh/cluster-key.pem
-   chmod 400 ~/.ssh/cluster-key.pem
-   
-   # Or import existing key
-   aws ec2 import-key-pair --key-name cluster-key --public-key-material fileb://~/.ssh/cluster-key.pub
+   # Override the default key name when running terraform apply
+   terraform apply -auto-approve -var="key_name=<your-key-name>"
    ```
 
 3. **Deploy Infrastructure with Terraform:**
