@@ -41,3 +41,9 @@ variable "ami_id" {
   default     = "ami-0c02fb55956c7d316"
 }
 
+variable "ssh_user" {
+  description = "SSH username for AMI (ubuntu for Ubuntu AMIs, ec2-user for AL2)"
+  type        = string
+  default     = "ubuntu"
+}
+

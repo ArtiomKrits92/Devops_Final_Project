@@ -10,7 +10,7 @@ env:
   AWS_REGION: us-east-1
   DOCKER_IMAGE: artie92/asset-manager
   DOCKER_TAG: latest
-  TF_VAR_key_name: ${{ secrets.KEY_NAME || 'vockey' }}
+  TF_VAR_key_name: ${{ secrets.KEY_NAME }}
 
 jobs:
   test:
@@ -110,14 +110,15 @@ jobs:
           MASTER_IP=$(terraform output -raw master_public_ip)
           WORKER1_IP=$(terraform output -raw worker1_public_ip)
           WORKER2_IP=$(terraform output -raw worker2_public_ip)
+          SSH_USER=$(terraform output -raw ssh_user)
           
           cat > ../ansible/inventory.ini <<EOF
           [master]
-          $MASTER_IP ansible_user=ec2-user ansible_ssh_private_key_file=~/.ssh/cluster-key.pem
+          $MASTER_IP ansible_user=$SSH_USER ansible_ssh_private_key_file=~/.ssh/cluster-key.pem
 
           [workers]
-          $WORKER1_IP ansible_user=ec2-user ansible_ssh_private_key_file=~/.ssh/cluster-key.pem
-          $WORKER2_IP ansible_user=ec2-user ansible_ssh_private_key_file=~/.ssh/cluster-key.pem
+          $WORKER1_IP ansible_user=$SSH_USER ansible_ssh_private_key_file=~/.ssh/cluster-key.pem
+          $WORKER2_IP ansible_user=$SSH_USER ansible_ssh_private_key_file=~/.ssh/cluster-key.pem
 
           [all:vars]
           ansible_python_interpreter=/usr/bin/python3
@@ -162,9 +163,26 @@ jobs:
           pip3 install 'ansible-core==2.14.17'
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-      - name: Wait for SSH
+      - name: Wait for SSH readiness
         run: |
-          sleep 60  # Wait for instances to be ready
+          MASTER_IP=$(grep -A0 "^\[master\]" inventory.ini | sed -n '2p' | awk '{print $1}')
+          WORKER_IPS=$(grep -A10 "^\[workers\]" inventory.ini | grep -v "^\[" | awk '{print $1}')
+          SSH_USER=$(grep -m1 ansible_user inventory.ini | sed -E 's/.*ansible_user=([^ ]+).*/\1/')
+          
+          for ip in $MASTER_IP $WORKER_IPS; do
+            for i in {1..30}; do
+              if ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no \
+                   -i ~/.ssh/cluster-key.pem $SSH_USER@$ip "echo ready" 2>/dev/null; then
+                echo "SSH ready for $ip"
+                break
+              fi
+              if [ $i -eq 30 ]; then
+                echo "SSH timeout for $ip after 30 attempts"
+                exit 1
+              fi
+              sleep 10
+            done
+          done
 
       - name: Run Ansible playbooks
         working-directory: ./ansible
@@ -201,11 +219,12 @@ jobs:
         working-directory: ./terraform
         run: terraform init -input=false
 
-      - name: Get master IP
+      - name: Get master IP and SSH user
         id: get-master
         working-directory: ./terraform
         run: |
           echo "master_ip=$(terraform output -raw master_public_ip)" >> $GITHUB_OUTPUT
+          echo "ssh_user=$(terraform output -raw ssh_user)" >> $GITHUB_OUTPUT
 
       - name: Setup kubectl
         uses: azure/setup-kubectl@v3
@@ -215,27 +234,82 @@ jobs:
         with:
           version: '3.12.0'
 
-      - name: Configure kubectl
+      - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY || '' }}" > ~/.ssh/cluster-key.pem
           chmod 600 ~/.ssh/cluster-key.pem
-          
-          # Copy kubeconfig from master
-          scp -i ~/.ssh/cluster-key.pem -o StrictHostKeyChecking=no \
-            ec2-user@${{ steps.get-master.outputs.master_ip }}:~/.kube/config \
-            ~/.kube/config || echo "kubeconfig not ready yet"
 
-      - name: Wait for cluster
+      - name: Wait for kubeconfig and API
         run: |
-          sleep 120  # Wait for cluster to be fully ready
+          SSH_USER="${{ steps.get-master.outputs.ssh_user }}"
+          MASTER_IP="${{ steps.get-master.outputs.master_ip }}"
+          mkdir -p ~/.kube
+          
+          # Wait for admin.conf
+          for i in {1..60}; do
+            if ssh -i ~/.ssh/cluster-key.pem -o StrictHostKeyChecking=no \
+                 $SSH_USER@$MASTER_IP "test -f /etc/kubernetes/admin.conf" 2>/dev/null; then
+              echo "admin.conf ready"
+              break
+            fi
+            if [ $i -eq 60 ]; then
+              echo "Timeout waiting for admin.conf"
+              exit 1
+            fi
+            sleep 10
+          done
+          
+          # Copy kubeconfig
+          for i in {1..60}; do
+            if scp -i ~/.ssh/cluster-key.pem -o StrictHostKeyChecking=no \
+                 $SSH_USER@$MASTER_IP:~/.kube/config ~/.kube/config 2>/dev/null; then
+              echo "kubeconfig copied"
+              break
+            fi
+            if [ $i -eq 60 ]; then
+              echo "Timeout copying kubeconfig"
+              exit 1
+            fi
+            sleep 10
+          done
+          
+          # Wait for API
+          for i in {1..60}; do
+            if kubectl --kubeconfig=~/.kube/config cluster-info 2>/dev/null; then
+              echo "Kubernetes API ready"
+              break
+            fi
+            if [ $i -eq 60 ]; then
+              echo "Timeout waiting for Kubernetes API"
+              exit 1
+            fi
+            sleep 10
+          done
+
+      - name: Wait for nodes Ready
+        run: |
+          for i in {1..30}; do
+            READY=$(kubectl get nodes --no-headers 2>/dev/null | grep -c Ready || echo 0)
+            if [ "$READY" -ge 3 ]; then
+              echo "All 3 nodes Ready"
+              break
+            fi
+            if [ $i -eq 30 ]; then
+              echo "Timeout waiting for nodes Ready (found $READY/3)"
+              exit 1
+            fi
+            sleep 10
+          done
+          kubectl get nodes
 
       - name: Deploy with Helm
         working-directory: ./helm/asset-manager
         run: |
+          MASTER_PRIVATE_IP=$(cd ../../terraform && terraform output -raw master_private_ip)
           helm upgrade --install asset-manager . \
-            --set nfs.server=10.0.1.10 \
-            --wait --timeout=5m || echo "Helm deployment may need manual intervention"
+            --set nfs.server=$MASTER_PRIVATE_IP \
+            --wait --timeout=7m
 
       - name: Get ALB DNS
         working-directory: ./terraform

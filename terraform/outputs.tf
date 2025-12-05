@@ -17,3 +17,13 @@ output "load_balancer_dns" {
   description = "DNS name of load balancer"
   value       = aws_lb.main.dns_name
 }
+
+output "ssh_user" {
+  description = "SSH username for instances"
+  value       = var.ssh_user
+}
+
+output "master_private_ip" {
+  description = "Private IP of master node"
+  value       = aws_instance.master.private_ip
+}
