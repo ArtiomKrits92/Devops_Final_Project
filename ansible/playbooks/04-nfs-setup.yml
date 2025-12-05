@@ -16,8 +16,8 @@
         path: /data/nfs-share
         state: directory
         mode: '0777'
-        owner: nobody
-        group: nobody
+        owner: root
+        group: root
     
     # Configure NFS exports
     - name: Configure NFS exports
@@ -42,9 +42,8 @@
     
     # Export NFS shares
     - name: Export NFS shares
-      shell: exportfs -ra
-      args:
-        creates: /var/lib/nfs/etab
+      command: exportfs -ra
+      changed_when: true
 
 - name: Mount NFS on workers
   hosts: workers
