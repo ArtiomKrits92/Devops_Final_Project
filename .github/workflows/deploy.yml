@@ -353,23 +353,17 @@ jobs:
           done
           
           echo "Waiting for Kubernetes API..."
-          # Verify kubeconfig exists using absolute path
-          if [ ! -f "$KUBECONFIG_PATH" ]; then
-            echo "ERROR: kubeconfig file not found at $KUBECONFIG_PATH"
-            ls -la ~/.kube/ || echo "~/.kube directory doesn't exist"
-            exit 1
-          fi
-          echo "kubeconfig file exists, size: $(wc -c < "$KUBECONFIG_PATH") bytes"
-          
-          # Set KUBECONFIG explicitly using absolute path
-          export KUBECONFIG="$KUBECONFIG_PATH"
-          echo "KUBECONFIG set to: $KUBECONFIG"
+          echo "Testing API via SSH on master node (API server not accessible from outside)..."
           
           # Try for 10 minutes max (60 attempts × 10 seconds)
+          # Run kubectl on master via SSH since API server is only accessible from VPC
           for i in {1..60}; do
-            # Use timeout to prevent kubectl from hanging, use absolute path
-            if timeout 5 kubectl --kubeconfig="$KUBECONFIG_PATH" cluster-info 2>/dev/null; then
+            if ssh -i ~/.ssh/cluster-key.pem -o StrictHostKeyChecking=no \
+                 ec2-user@$MASTER_IP "kubectl --kubeconfig=/home/ec2-user/.kube/config cluster-info 2>/dev/null" >/dev/null 2>&1; then
               echo "✅ K8s API ready after $((i * 10)) seconds"
+              # Show cluster info
+              ssh -i ~/.ssh/cluster-key.pem -o StrictHostKeyChecking=no \
+                  ec2-user@$MASTER_IP "kubectl --kubeconfig=/home/ec2-user/.kube/config cluster-info" | head -3
               break
             fi
             if [ $i -eq 60 ]; then
@@ -377,42 +371,45 @@ jobs:
               echo ""
               echo "=== DIAGNOSTIC INFORMATION ==="
               echo ""
-              echo "1. kubectl cluster-info output:"
-              kubectl cluster-info 2>&1 || true
+              echo "1. Testing kubectl on master..."
+              ssh -i ~/.ssh/cluster-key.pem -o StrictHostKeyChecking=no \
+                  ec2-user@$MASTER_IP "kubectl --kubeconfig=/home/ec2-user/.kube/config cluster-info 2>&1" || true
               echo ""
               echo "2. Checking kubelet status on master..."
               ssh -i ~/.ssh/cluster-key.pem -o StrictHostKeyChecking=no \
-                ec2-user@$MASTER_IP "sudo systemctl status kubelet --no-pager | head -20" || true
+                  ec2-user@$MASTER_IP "sudo systemctl status kubelet --no-pager | head -20" || true
               echo ""
               echo "3. Checking if API server pod is running..."
               ssh -i ~/.ssh/cluster-key.pem -o StrictHostKeyChecking=no \
-                ec2-user@$MASTER_IP "sudo crictl ps | grep kube-apiserver || echo 'No API server pod found'" || true
+                  ec2-user@$MASTER_IP "sudo crictl ps | grep kube-apiserver || echo 'No API server pod found'" || true
               echo ""
               echo "4. All control plane pods:"
               ssh -i ~/.ssh/cluster-key.pem -o StrictHostKeyChecking=no \
-                ec2-user@$MASTER_IP "sudo crictl ps | head -10" || true
+                  ec2-user@$MASTER_IP "sudo crictl ps | head -10" || true
               echo ""
               echo "5. Recent kubelet errors:"
               ssh -i ~/.ssh/cluster-key.pem -o StrictHostKeyChecking=no \
-                ec2-user@$MASTER_IP "sudo journalctl -u kubelet --since '10 minutes ago' -n 20 | grep -i 'error\|fail' || echo 'No recent errors'" || true
+                  ec2-user@$MASTER_IP "sudo journalctl -u kubelet --since '10 minutes ago' -n 20 | grep -i 'error\|fail' || echo 'No recent errors'" || true
               echo ""
               exit 1
             fi
             if [ $((i % 6)) -eq 0 ]; then
               echo "Attempt $i/60: Still waiting... ($((i * 10)) seconds elapsed)"
-              # Show what kubectl is actually returning
-              echo "Testing kubectl connection..."
-              timeout 5 kubectl --kubeconfig="$KUBECONFIG_PATH" cluster-info 2>&1 | head -3 || echo "kubectl failed or timed out"
+              # Test kubectl on master
+              ssh -i ~/.ssh/cluster-key.pem -o StrictHostKeyChecking=no \
+                  ec2-user@$MASTER_IP "kubectl --kubeconfig=/home/ec2-user/.kube/config cluster-info 2>&1 | head -2" || echo "API not ready yet"
             fi
             sleep 10
           done
 
       - name: Wait for nodes Ready
         run: |
-          export KUBECONFIG="$HOME/.kube/config"
+          MASTER_IP="${{ steps.get-master.outputs.master_ip }}"
           echo "Waiting for all 3 nodes to be Ready..."
+          echo "Checking nodes via SSH on master (API server not accessible from outside)..."
           for i in {1..30}; do
-            READY=$(kubectl get nodes --no-headers 2>/dev/null | grep -c " Ready" || echo 0)
+            READY=$(ssh -i ~/.ssh/cluster-key.pem -o StrictHostKeyChecking=no \
+              ec2-user@$MASTER_IP "kubectl --kubeconfig=/home/ec2-user/.kube/config get nodes --no-headers 2>/dev/null | grep -c ' Ready' || echo 0")
             echo "Ready nodes: $READY/3"
             if [ "$READY" -ge 3 ]; then
               echo "All nodes Ready!"
@@ -420,25 +417,49 @@ jobs:
             fi
             if [ $i -eq 30 ]; then
               echo "Timeout waiting for nodes"
-              kubectl get nodes
+              ssh -i ~/.ssh/cluster-key.pem -o StrictHostKeyChecking=no \
+                ec2-user@$MASTER_IP "kubectl --kubeconfig=/home/ec2-user/.kube/config get nodes"
               exit 1
             fi
             sleep 10
           done
-          kubectl get nodes
+          echo "Node status:"
+          ssh -i ~/.ssh/cluster-key.pem -o StrictHostKeyChecking=no \
+            ec2-user@$MASTER_IP "kubectl --kubeconfig=/home/ec2-user/.kube/config get nodes"
 
       - name: Deploy with Helm
-        working-directory: ./helm/asset-manager
         run: |
-          export KUBECONFIG="$HOME/.kube/config"
-          echo "Deploying application with Helm..."
-          helm upgrade --install asset-manager . \
-            --set nfs.server=10.0.1.10 \
-            --wait --timeout=7m
+          MASTER_IP="${{ steps.get-master.outputs.master_ip }}"
+          echo "Installing Helm on master node..."
+          # Install Helm on master if not already installed
+          ssh -i ~/.ssh/cluster-key.pem -o StrictHostKeyChecking=no \
+            ec2-user@$MASTER_IP "command -v helm >/dev/null 2>&1 || { \
+              curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash; \
+            }"
+          
+          echo "Copying Helm charts to master node..."
+          # Create temp directory and copy charts
+          tar -czf /tmp/helm-charts.tar.gz -C helm/asset-manager .
+          scp -i ~/.ssh/cluster-key.pem -o StrictHostKeyChecking=no \
+            /tmp/helm-charts.tar.gz ec2-user@$MASTER_IP:/tmp/
+          ssh -i ~/.ssh/cluster-key.pem -o StrictHostKeyChecking=no \
+            ec2-user@$MASTER_IP "mkdir -p /tmp/helm-deploy && cd /tmp/helm-deploy && tar -xzf /tmp/helm-charts.tar.gz"
+          
+          echo "Deploying application with Helm on master..."
+          ssh -i ~/.ssh/cluster-key.pem -o StrictHostKeyChecking=no \
+            ec2-user@$MASTER_IP "cd /tmp/helm-deploy && \
+            export KUBECONFIG=/home/ec2-user/.kube/config && \
+            helm upgrade --install asset-manager . \
+              --set nfs.server=10.0.1.10 \
+              --wait --timeout=7m"
           
           echo "Deployment complete!"
-          kubectl get pods
-          kubectl get svc
+          echo "Pod status:"
+          ssh -i ~/.ssh/cluster-key.pem -o StrictHostKeyChecking=no \
+            ec2-user@$MASTER_IP "kubectl --kubeconfig=/home/ec2-user/.kube/config get pods"
+          echo "Service status:"
+          ssh -i ~/.ssh/cluster-key.pem -o StrictHostKeyChecking=no \
+            ec2-user@$MASTER_IP "kubectl --kubeconfig=/home/ec2-user/.kube/config get svc"
 
       - name: Get ALB DNS
         working-directory: ./terraform
