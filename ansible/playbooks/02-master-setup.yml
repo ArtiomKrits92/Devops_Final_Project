@@ -4,12 +4,41 @@
   become: true
   
   tasks:
+    # Ensure containerd is running (required for kubelet)
+    - name: Ensure containerd is running
+      systemd:
+        name: containerd
+        state: started
+        enabled: true
+    
+    # Ensure kubelet is running
+    - name: Ensure kubelet is running
+      systemd:
+        name: kubelet
+        state: started
+        enabled: true
+    
     # Initialize Kubernetes cluster
-    - name: Initialize Kubernetes cluster
       shell: kubeadm init --pod-network-cidr=10.244.0.0/16 --apiserver-advertise-address=10.0.1.10 --ignore-preflight-errors=Swap
       register: kubeadm_output
       args:
         creates: /etc/kubernetes/admin.conf
+    
+    # Wait for API server to be ready (kubeadm init creates config but API pod needs time to start)
+    - name: Wait for Kubernetes API server to be ready
+      shell: |
+        export KUBECONFIG=/etc/kubernetes/admin.conf
+        for i in {1..60}; do
+          if kubectl cluster-info 2>/dev/null; then
+            echo "API server is ready!"
+            exit 0
+          fi
+          echo "Waiting for API server... attempt $i/60"
+          sleep 10
+        done
+        echo "ERROR: API server not ready after 10 minutes"
+        exit 1
+      become_user: root
     
     # Setup kubectl for ec2-user
     - name: Create .kube directory

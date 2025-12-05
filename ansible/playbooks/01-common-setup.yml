@@ -119,8 +119,9 @@
         enabled: false
       ignore_errors: true
     
-    # Enable kubelet service
-    - name: Enable kubelet service
+    # Enable and start kubelet service
+    - name: Enable and start kubelet service
       systemd:
         name: kubelet
         enabled: true
+        state: started
