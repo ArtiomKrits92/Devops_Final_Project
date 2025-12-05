@@ -169,14 +169,6 @@ jobs:
           pip3 install 'ansible-core==2.14.17'
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-      - name: Pin urllib3/requests for ansible-galaxy compatibility
-        run: |
-          pip3 install "urllib3<2" "requests<2.32"
-
-      - name: Install required Ansible collections
-        run: |
-          ansible-galaxy collection install ansible.posix community.general
-
       - name: Wait for SSH readiness
         working-directory: ./ansible
         run: |
@@ -268,14 +260,6 @@ jobs:
         run: |
           pip3 install 'ansible-core==2.14.17'
           echo "$HOME/.local/bin" >> $GITHUB_PATH
-
-      - name: Pin urllib3/requests for ansible-galaxy compatibility
-        run: |
-          pip3 install "urllib3<2" "requests<2.32"
-
-      - name: Install required Ansible collections
-        run: |
-          ansible-galaxy collection install ansible.posix community.general
 
       - name: Wait for SSH readiness
         working-directory: ./ansible
