@@ -187,7 +187,7 @@ docker --version
 ### Important Notes
 
 - **Region:** Deploy only in `us-east-1` (AWS Academy default)
-- **Session token expires** after 4 hours - update `AWS_SESSION_TOKEN` when it expires
+- **Session token expires** after ~3 hours - update `AWS_SESSION_TOKEN` when it expires
 - **Docker password** must be an Access Token (not your login password) - create at hub.docker.com/settings/security
 
 ## Deployment
@@ -669,7 +669,7 @@ export PATH="$HOME/Library/Python/3.9/bin:$PATH"
 
 ### Other Issues
 
-- AWS Academy session expires after 4 hours
+- AWS Academy session expires after ~3 hours
 - NFS requires ports 2049, 111 open in security groups
 - Use t3.medium instances (t2.micro too small for K8s)
 
