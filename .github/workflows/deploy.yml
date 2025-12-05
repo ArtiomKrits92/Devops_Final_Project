@@ -294,11 +294,28 @@ jobs:
             fi
             if [ $i -eq 60 ]; then
               echo "❌ FAILED: K8s API not ready after 10 minutes"
-              echo "Checking master node status..."
-              ssh -i ~/.ssh/cluster-key.pem -o StrictHostKeyChecking=no \
-                ec2-user@$MASTER_IP "sudo systemctl status kubelet | head -20" || true
-              echo "kubectl cluster-info output:"
+              echo ""
+              echo "=== DIAGNOSTIC INFORMATION ==="
+              echo ""
+              echo "1. kubectl cluster-info output:"
               kubectl cluster-info 2>&1 || true
+              echo ""
+              echo "2. Checking kubelet status on master..."
+              ssh -i ~/.ssh/cluster-key.pem -o StrictHostKeyChecking=no \
+                ec2-user@$MASTER_IP "sudo systemctl status kubelet --no-pager | head -20" || true
+              echo ""
+              echo "3. Checking if API server pod is running..."
+              ssh -i ~/.ssh/cluster-key.pem -o StrictHostKeyChecking=no \
+                ec2-user@$MASTER_IP "sudo crictl ps | grep kube-apiserver || echo 'No API server pod found'" || true
+              echo ""
+              echo "4. All control plane pods:"
+              ssh -i ~/.ssh/cluster-key.pem -o StrictHostKeyChecking=no \
+                ec2-user@$MASTER_IP "sudo crictl ps | head -10" || true
+              echo ""
+              echo "5. Recent kubelet errors:"
+              ssh -i ~/.ssh/cluster-key.pem -o StrictHostKeyChecking=no \
+                ec2-user@$MASTER_IP "sudo journalctl -u kubelet --since '10 minutes ago' -n 20 | grep -i 'error\|fail' || echo 'No recent errors'" || true
+              echo ""
               exit 1
             fi
             if [ $((i % 6)) -eq 0 ]; then
