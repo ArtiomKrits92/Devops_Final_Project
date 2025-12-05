@@ -23,7 +23,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.9'
+          python-version: "3.9"
 
       - name: Install dependencies
         run: |
@@ -84,7 +84,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.5.0
+          terraform_version: "1.5.0"
 
       - name: Terraform Init
         working-directory: ./terraform
@@ -111,7 +111,7 @@ jobs:
           WORKER1_IP=$(terraform output -raw worker1_public_ip)
           WORKER2_IP=$(terraform output -raw worker2_public_ip)
           SSH_USER=$(terraform output -raw ssh_user)
-          
+
           cat > ../ansible/inventory.ini <<EOF
           [master]
           $MASTER_IP ansible_user=$SSH_USER ansible_ssh_private_key_file=~/.ssh/cluster-key.pem
@@ -158,17 +158,22 @@ jobs:
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN || '' }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Install Ansible 2.14.x (compatible with Amazon Linux 2)
+      - name: Install Ansible core 2.14.x
         run: |
           pip3 install 'ansible-core==2.14.17'
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
+      - name: Install required Ansible collections
+        run: |
+          ansible-galaxy collection install ansible.posix community.general
+
       - name: Wait for SSH readiness
+        working-directory: ./ansible
         run: |
           MASTER_IP=$(grep -A0 "^\[master\]" inventory.ini | sed -n '2p' | awk '{print $1}')
           WORKER_IPS=$(grep -A10 "^\[workers\]" inventory.ini | grep -v "^\[" | awk '{print $1}')
           SSH_USER=$(grep -m1 ansible_user inventory.ini | sed -E 's/.*ansible_user=([^ ]+).*/\1/')
-          
+
           for ip in $MASTER_IP $WORKER_IPS; do
             for i in {1..30}; do
               if ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no \
@@ -189,7 +194,7 @@ jobs:
         run: |
           ansible-playbook -i inventory.ini playbooks/01-common-setup.yml
           ansible-playbook -i inventory.ini playbooks/02-master-setup.yml
-          sleep 30  # Wait for master to be ready
+          sleep 30
           ansible-playbook -i inventory.ini playbooks/03-worker-setup.yml
           ansible-playbook -i inventory.ini playbooks/04-nfs-setup.yml
 
@@ -232,7 +237,7 @@ jobs:
       - name: Setup Helm
         uses: azure/setup-helm@v3
         with:
-          version: '3.12.0'
+          version: "3.12.0"
 
       - name: Setup SSH key
         run: |
@@ -245,8 +250,7 @@ jobs:
           SSH_USER="${{ steps.get-master.outputs.ssh_user }}"
           MASTER_IP="${{ steps.get-master.outputs.master_ip }}"
           mkdir -p ~/.kube
-          
-          # Wait for admin.conf
+
           for i in {1..60}; do
             if ssh -i ~/.ssh/cluster-key.pem -o StrictHostKeyChecking=no \
                  $SSH_USER@$MASTER_IP "test -f /etc/kubernetes/admin.conf" 2>/dev/null; then
@@ -259,8 +263,7 @@ jobs:
             fi
             sleep 10
           done
-          
-          # Copy kubeconfig
+
           for i in {1..60}; do
             if scp -i ~/.ssh/cluster-key.pem -o StrictHostKeyChecking=no \
                  $SSH_USER@$MASTER_IP:~/.kube/config ~/.kube/config 2>/dev/null; then
@@ -273,8 +276,7 @@ jobs:
             fi
             sleep 10
           done
-          
-          # Wait for API
+
           for i in {1..60}; do
             if kubectl --kubeconfig=~/.kube/config cluster-info 2>/dev/null; then
               echo "Kubernetes API ready"
