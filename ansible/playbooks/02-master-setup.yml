@@ -19,6 +19,7 @@
         enabled: true
     
     # Initialize Kubernetes cluster
+    - name: Initialize Kubernetes cluster
       shell: kubeadm init --pod-network-cidr=10.244.0.0/16 --apiserver-advertise-address=10.0.1.10 --ignore-preflight-errors=Swap
       register: kubeadm_output
       args:
