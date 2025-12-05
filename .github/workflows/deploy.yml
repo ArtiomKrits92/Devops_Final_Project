@@ -148,12 +148,24 @@ jobs:
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/cluster-key.pem
+          # Write key, removing any trailing newlines/whitespace
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" | sed 's/[[:space:]]*$//' > ~/.ssh/cluster-key.pem
           chmod 600 ~/.ssh/cluster-key.pem
           # Verify key format
           echo "Verifying SSH key format..."
-          head -1 ~/.ssh/cluster-key.pem | grep -q "BEGIN.*PRIVATE KEY" && echo "✅ Key format looks correct" || echo "⚠️ Key format may be incorrect"
+          if head -1 ~/.ssh/cluster-key.pem | grep -q "BEGIN.*PRIVATE KEY"; then
+            echo "✅ Key format looks correct"
+          else
+            echo "⚠️ Key format may be incorrect - first line:"
+            head -1 ~/.ssh/cluster-key.pem
+          fi
           echo "Key file size: $(wc -c < ~/.ssh/cluster-key.pem) bytes"
+          echo "Last line check:"
+          tail -1 ~/.ssh/cluster-key.pem | grep -q "END.*PRIVATE KEY" && echo "✅ End marker found" || echo "⚠️ End marker missing"
+          # Try to validate key with ssh-keygen (if available)
+          if command -v ssh-keygen >/dev/null 2>&1; then
+            ssh-keygen -y -f ~/.ssh/cluster-key.pem >/dev/null 2>&1 && echo "✅ Key validation passed" || echo "⚠️ Key validation failed"
+          fi
 
       - name: Install Ansible core 2.14.x
         run: |
@@ -186,7 +198,12 @@ jobs:
             echo "Waiting for SSH on $ip..."
             # Increased to 60 attempts (10 minutes) - instances may take longer to boot
             for i in {1..60}; do
-              if ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no \
+              # Try SSH with explicit key types for older systems
+              if ssh -o ConnectTimeout=5 \
+                   -o StrictHostKeyChecking=no \
+                   -o UserKnownHostsFile=/dev/null \
+                   -o PubkeyAcceptedKeyTypes=+ssh-rsa \
+                   -o HostkeyAlgorithms=+ssh-rsa \
                    -i ~/.ssh/cluster-key.pem ec2-user@$ip "echo ready" 2>/dev/null; then
                 echo "✅ SSH ready for $ip after $((i * 10)) seconds"
                 break
