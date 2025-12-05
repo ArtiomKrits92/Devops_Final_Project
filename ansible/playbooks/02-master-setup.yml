@@ -29,15 +29,19 @@
     - name: Wait for Kubernetes API server to be ready
       shell: |
         export KUBECONFIG=/etc/kubernetes/admin.conf
+        export PATH=/usr/bin:/usr/local/bin:$PATH
         for i in {1..60}; do
-          if kubectl cluster-info 2>/dev/null; then
+          if /usr/bin/kubectl cluster-info 2>/dev/null; then
             echo "API server is ready!"
             exit 0
           fi
-          echo "Waiting for API server... attempt $i/60"
+          if [ $((i % 6)) -eq 0 ]; then
+            echo "Waiting for API server... attempt $i/60 ($((i * 10)) seconds)"
+          fi
           sleep 10
         done
         echo "ERROR: API server not ready after 10 minutes"
+        /usr/bin/kubectl cluster-info 2>&1 || true
         exit 1
       become_user: root
     
