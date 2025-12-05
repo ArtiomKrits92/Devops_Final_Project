@@ -65,9 +65,15 @@
     
     # Mount NFS share
     - name: Mount NFS share
-      mount:
-        path: /data/nfs-share
-        src: "10.0.1.10:/data/nfs-share"
-        fstype: nfs
-        state: mounted
-        opts: defaults,vers=4.1
+      shell: |
+        if ! mountpoint -q /data/nfs-share; then
+          mount -t nfs -o defaults,nfsvers=4.1 10.0.1.10:/data/nfs-share /data/nfs-share
+        fi
+      args:
+        executable: /bin/bash
+
+    - name: Add NFS to fstab for persistence
+      lineinfile:
+        path: /etc/fstab
+        line: '10.0.1.10:/data/nfs-share /data/nfs-share nfs defaults,nfsvers=4.1 0 0'
+        create: yes
