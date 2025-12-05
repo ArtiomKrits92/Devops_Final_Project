@@ -139,15 +139,62 @@ docker --version
 
 ## GitHub Secrets
 
-For CI/CD, add these secrets in GitHub Settings → Secrets:
-- `AWS_ACCESS_KEY_ID`
-- `AWS_SECRET_ACCESS_KEY`
-- `AWS_SESSION_TOKEN`
-- `DOCKER_USERNAME`
-- `DOCKER_PASSWORD`
-- `SSH_PRIVATE_KEY` (contents of cluster-key.pem)
+**CRITICAL:** The CI/CD pipeline will fail if these secrets are not configured. Follow these steps exactly:
 
-**Note:** AWS Academy session tokens expire after 4 hours. Update `AWS_SESSION_TOKEN` when it expires.
+### Step-by-Step Setup:
+
+1. **Go to GitHub Repository Settings:**
+   - Open: https://github.com/ArtiomKrits92/Devops_Final_Project
+   - Click **Settings** (top menu)
+   - Click **Secrets and variables** → **Actions** (left sidebar)
+   - Click **New repository secret** button
+
+2. **Add Each Secret (one at a time):**
+
+   **Secret 1: `DOCKER_USERNAME`**
+   - Name: `DOCKER_USERNAME`
+   - Value: Your Docker Hub username (e.g., `artie92`)
+   - Click **Add secret**
+
+   **Secret 2: `DOCKER_PASSWORD`**
+   - Name: `DOCKER_PASSWORD`
+   - Value: Your Docker Hub password (or access token if you have 2FA enabled)
+   - Click **Add secret**
+   - **Note:** If you have 2FA on Docker Hub, create an access token at https://hub.docker.com/settings/security instead of using your password
+
+   **Secret 3: `AWS_ACCESS_KEY_ID`**
+   - Name: `AWS_ACCESS_KEY_ID`
+   - Value: From AWS Academy Lab session → AWS Details
+   - Click **Add secret**
+
+   **Secret 4: `AWS_SECRET_ACCESS_KEY`**
+   - Name: `AWS_SECRET_ACCESS_KEY`
+   - Value: From AWS Academy Lab session → AWS Details
+   - Click **Add secret**
+
+   **Secret 5: `AWS_SESSION_TOKEN`**
+   - Name: `AWS_SESSION_TOKEN`
+   - Value: From AWS Academy Lab session → AWS Details (the long token)
+   - Click **Add secret**
+   - **Note:** This expires after 4 hours - update it when it expires
+
+   **Secret 6: `SSH_PRIVATE_KEY`**
+   - Name: `SSH_PRIVATE_KEY`
+   - Value: Copy the entire contents of your `~/.ssh/cluster-key.pem` file
+     ```bash
+     cat ~/.ssh/cluster-key.pem
+     # Copy everything including -----BEGIN RSA PRIVATE KEY----- and -----END RSA PRIVATE KEY-----
+     ```
+   - Click **Add secret**
+
+3. **Verify All 6 Secrets Are Added:**
+   - You should see all 6 secrets listed in the Secrets page
+   - If any are missing, the CI/CD pipeline will fail
+
+**Common Issues:**
+- ❌ **"Build and Push Docker Image" fails** → `DOCKER_USERNAME` or `DOCKER_PASSWORD` is missing/incorrect
+- ❌ **"Deploy Infrastructure" fails** → AWS credentials are missing/expired
+- ❌ **"Configure Kubernetes Cluster" fails** → `SSH_PRIVATE_KEY` is missing/incorrect
 
 ## Deployment
 
