@@ -218,34 +218,58 @@ docker --version
      - `SSH_PRIVATE_KEY` - Contents of your `~/.ssh/cluster-key.pem` file (copy entire file content)
 
 2. **Trigger the CI/CD Pipeline:**
-   - **Automatic:** Push any commit to the `main` branch
-     ```bash
-     git add .
-     git commit -m "Trigger deployment"
-     git push origin main
-     ```
-   - **Manual:** Go to GitHub → Actions tab → Select "Deploy to AWS" workflow → Click "Run workflow" → Select "main" branch → Click "Run workflow"
 
-3. **Monitor Deployment:**
-   - Go to GitHub → Actions tab
-   - Click on the running workflow
-   - Watch the progress through these stages:
-     - ✅ **Test** - Runs application tests
-     - ✅ **Build** - Builds and pushes Docker image to Docker Hub
-     - ✅ **Terraform** - Provisions AWS infrastructure (VPC, EC2 instances, ALB)
-     - ✅ **Ansible** - Configures Kubernetes cluster and NFS server
-     - ✅ **Helm** - Deploys application to Kubernetes
+   ### Method 1: Manual Trigger (Recommended for Evaluators)
 
-4. **Wait for Completion:**
-   - Total deployment time: **15-20 minutes**
-   - Wait until all workflow steps show green checkmarks ✅
+   1. Go to: https://github.com/ArtiomKrits92/Devops_Final_Project/actions
+   2. Click on "Deploy to AWS" workflow in the left sidebar
+   3. Click "Run workflow" button (right side, blue button)
+   4. Select branch: `main`
+   5. Click "Run workflow" (green button)
 
-5. **Get Application URL:**
+   The pipeline will start immediately.
+
+   ### Method 2: Automatic Trigger (On Code Push)
+
+   ```bash
+   # Any push to main branch triggers the pipeline
+   git add .
+   git commit -m "Trigger deployment"
+   git push origin main
+   ```
+
+3. **Monitor the Pipeline:**
+
+   1. Go to: https://github.com/ArtiomKrits92/Devops_Final_Project/actions
+   2. Click on the running workflow
+   3. Watch progress through 5 stages:
+      - ✅ **Test** (~2 min) - Runs application tests
+      - ✅ **Build** (~5 min) - Builds and pushes Docker image to Docker Hub
+      - ✅ **Terraform** (~5 min) - Provisions AWS infrastructure (VPC, EC2 instances, ALB)
+      - ✅ **Ansible** (~15 min) - Configures Kubernetes cluster and NFS server
+      - ✅ **Helm** (~3 min) - Deploys application to Kubernetes
+
+   **Total time: ~30 minutes**
+
+   Wait until all workflow steps show green checkmarks ✅
+
+4. **Get Application URL:**
+
+   After pipeline completes successfully:
+
+   **Option 1:** Check workflow output:
+   - Click on the "Helm" stage
+   - Scroll to "Get ALB DNS" step
+   - Copy the DNS name
+
+   **Option 2:** Use Terraform locally:
    ```bash
    cd terraform
    terraform output load_balancer_dns
    ```
-   Or check the workflow output in the "Get ALB DNS" step
+
+   **Option 3:** AWS Console:
+   - EC2 → Load Balancers → Find "app-load-balancer" → Copy DNS name
 
 6. **Access Application:**
    - Open browser: `http://<ALB_DNS>`
